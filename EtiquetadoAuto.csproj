@@ -27,8 +27,8 @@
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="8.0.100" />
     </ItemGroup>
 
-    <PropertyGroup>
-        <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
-    </PropertyGroup>
+   <PropertyGroup>
+    <MauiDisableResizetizer>true</MauiDisableResizetizer>
+</PropertyGroup>
 
 </Project>
