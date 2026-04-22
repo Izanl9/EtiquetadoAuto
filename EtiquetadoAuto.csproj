@@ -3,8 +3,6 @@
     <PropertyGroup>
         <TargetFrameworks>net8.0-android</TargetFrameworks>
         <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
-        <CheckEolWorkloads>false</CheckEolWorkloads>
-
         <OutputType>Exe</OutputType>
         <RootNamespace>EtiquetadoAuto</RootNamespace>
         <UseMaui>true</UseMaui>
@@ -19,19 +17,15 @@
         <ApplicationVersion>1</ApplicationVersion>
     </PropertyGroup>
 
-<ItemGroup>
-    <MauiXaml Include="**\*.xaml" />
-</ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="InTheHand.Net.Bluetooth" Version="4.0.34" />
+        <PackageReference Include="FirebaseDatabase.net" Version="4.2.0" />
+        <PackageReference Include="Microsoft.Maui.Controls" Version="8.0.100" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="8.0.100" />
+    </ItemGroup>
 
-<ItemGroup>
-    <PackageReference Include="InTheHand.Net.Bluetooth" Version="4.0.34" />
-    <PackageReference Include="FirebaseDatabase.net" Version="4.2.0" />
-    <PackageReference Include="Microsoft.Maui.Controls" Version="8.0.100" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="8.0.100" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
-</ItemGroup>
+    <PropertyGroup>
+        <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
+    </PropertyGroup>
 
-<PropertyGroup>
-    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
-</PropertyGroup>
 </Project>
