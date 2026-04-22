@@ -2,7 +2,23 @@
 <Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:EtiquetadoAuto"
-             x:Class="EtiquetadoAuto.App">
+             x:Class="EtiquetadoAuto.App"> ```
+
+### 2. Revisa `App.xaml.cs` (El código)
+Aquí es donde el error dice que no encuentra `InitializeComponent` ni `AppShell`. Déjalo así:
+
+```csharp
+namespace EtiquetadoAuto; // El namespace debe ser el nombre del proyecto
+
+public partial class App : Application
+{
+    public App()
+    {
+        InitializeComponent(); // Si el XAML de arriba está bien, este error desaparece
+
+        MainPage = new AppShell(); 
+    }
+}
     <Application.Resources>
         <ResourceDictionary>
 

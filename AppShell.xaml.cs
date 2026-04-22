@@ -1,4 +1,4 @@
-namespace EtiquetadoAuto; // Debe ser IGUAL al de App.xaml.cs
+namespace EtiquetadoAuto;
 
 public partial class AppShell : Shell
 {
