@@ -4,7 +4,7 @@ public partial class InventoryPage : ContentPage
 {
 	public InventoryPage()
 	{
-		//InitializeComponent();
+		InitializeComponent();
 		MainPage = new AppShell();
 	}
 }
