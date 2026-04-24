@@ -7,7 +7,6 @@
     <SingleProject>true</SingleProject>
     <StaticWebAssetsEnabled>true</StaticWebAssetsEnabled>
     <GenerateStaticWebAssetsManifest>true</GenerateStaticWebAssetsManifest>
-    <TrimMode>partial</TrimMode>
     <RuntimeIdentifier>android-arm64</RuntimeIdentifier>
     <PublishTrimmed>true</PublishTrimmed>
 </PropertyGroup>
