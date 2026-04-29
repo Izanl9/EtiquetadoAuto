@@ -1,4 +1,4 @@
-namespace EtiquetadoAuto; 
+namespace EtiquetadoAuto;
 public partial class ScannerPage : ContentPage
 {
     public ScannerPage()
