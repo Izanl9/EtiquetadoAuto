@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 env:
+  DOTNET_ROLL_FORWARD: LatestMajor
   CheckEolTargetFramework: false
 
 jobs:
@@ -16,29 +17,25 @@ jobs:
     - name: Descargar el código
       uses: actions/checkout@v4
 
-    - name: Setup .NET
+    - name: Setup .NET 8
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
 
-    - name: Configurar NuGet Oficial
-      run: |
-        echo "<?xml version='1.0' encoding='utf-8'?>
-        <configuration>
-          <packageSources>
-            <add key='nuget.org' value='https://api.nuget.org/v3/index.json' protocolVersion='3' />
-          </packageSources>
-        </configuration>" > nuget.config
-
     - name: Instalar Workloads
+      # Usamos sudo y forzamos la instalación para evitar bloqueos del SDK 10
       run: dotnet workload install maui-android wasm-tools --ignore-failed-sources
 
     - name: Restaurar dependencias
-      # El flag -v n nos dará más info si falla, pero CheckEol debería dejarlo pasar
-      run: dotnet restore EtiquetadoAuto.csproj -p:CheckEolTargetFramework=false --configfile nuget.config
+      # Definimos la variable de entorno justo antes del comando para asegurar que se lea
+      run: |
+        export CheckEolTargetFramework=false
+        dotnet restore EtiquetadoAuto.csproj -p:CheckEolTargetFramework=false
 
     - name: Compilar APK (Release)
-      run: dotnet publish EtiquetadoAuto.csproj -f net8.0-android -c Release -p:RuntimeIdentifier=android-arm64 -p:StaticWebAssetsEnabled=true -p:CheckEolTargetFramework=false --no-restore
+      run: |
+        export CheckEolTargetFramework=false
+        dotnet publish EtiquetadoAuto.csproj -f net8.0-android -c Release -p:RuntimeIdentifier=android-arm64 -p:StaticWebAssetsEnabled=true -p:CheckEolTargetFramework=false --no-restore
 
     - name: Guardar el archivo APK
       uses: actions/upload-artifact@v4
