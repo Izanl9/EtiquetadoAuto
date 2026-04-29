@@ -30,18 +30,15 @@ jobs:
     - name: Instalar Workloads
       run: dotnet workload install maui-android wasm-tools
 
-    - name: Restaurar dependencias
-      run: dotnet restore EtiquetadoAuto.csproj
-
-    - name: Compilar APK (Release)
-      # Quitamos -p:StaticWebAssetsEnabled=true que es lo que rompe el build de Blazor Hybrid
-      # Usamos el comando estándar de MAUI para Android
-      run: dotnet publish EtiquetadoAuto.csproj -f net8.0-android -c Release -p:AndroidKeyStore=false --no-restore
+    - name: Compilar y Publicar APK
+      # Eliminamos el paso de restore separado y el flag --no-restore
+      # Esto permite que Blazor genere sus StaticWebAssets correctamente
+      run: dotnet publish EtiquetadoAuto.csproj -f net8.0-android -c Release -p:AndroidKeyStore=false
 
     - name: Guardar el archivo APK
       uses: actions/upload-artifact@v4
       with:
         name: LogisticaVision-APK
         path: |
+          **/bin/Release/net8.0-android/*-Signed.apk
           **/bin/Release/net8.0-android/*.apk
-          **/bin/Release/net8.0-android/publish/*.apk
