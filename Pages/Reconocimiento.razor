@@ -30,35 +30,28 @@
         {
             if (MediaPicker.Default.IsCaptureSupported)
             {
-                statusMessage = "Abriendo cámara nativa...";
-                
-                // Captura la foto usando el hardware del móvil
+                statusMessage = "Abriendo cámara...";
+                StateHasChanged(); // Actualiza el mensaje en pantalla
+
                 FileResult photo = await MediaPicker.Default.CapturePhotoAsync();
                 
                 if (photo != null)
                 {
-                    statusMessage = $"Foto capturada: {photo.FileName}. Procesando...";
+                    statusMessage = "Foto recibida. Analizando...";
+                    StateHasChanged(); // Actualiza para que el usuario vea el cambio
+
+                    // SIMULACIÓN DE PROCESADO
+                    await Task.Delay(2000); 
                     
-                    // Aquí puedes leer el stream de la imagen si necesitas enviarlo a una IA
-                    using var stream = await photo.OpenReadAsync();
-                    
-                    // Ejemplo: var bytes = new byte[stream.Length];
-                    // await stream.ReadAsync(bytes);
+                    statusMessage = "Producto reconocido: Objeto de prueba";
+                    StateHasChanged();
                 }
-                else
-                {
-                    statusMessage = "Captura cancelada.";
-                }
-            }
-            else
-            {
-                statusMessage = "La cámara no está disponible en este dispositivo.";
             }
         }
         catch (Exception ex)
         {
             statusMessage = $"Error: {ex.Message}";
-            await JSRuntime.InvokeVoidAsync("alert", "Error al abrir la cámara: " + ex.Message);
+            StateHasChanged();
         }
     }
 }
