@@ -60,36 +60,25 @@
         await JS.InvokeVoidAsync("cargarModelo", UrlModeloGoogle);
     }
 
-    async Task TomarFotoNativa()
+    Task TomarFoto()
+{
+    try 
     {
-        try
-        {
-            // Usamos la API nativa de MAUI para abrir la cámara del teléfono
-            if (MediaPicker.Default.IsCaptureSupported)
-            {
-                var photo = await MediaPicker.Default.CapturePhotoAsync();
+        var status = await Permissions.CheckStatusAsync<Permissions.Camera>();
+        if (status != PermissionStatus.Granted)
+            status = await Permissions.RequestAsync<Permissions.Camera>();
 
-                if (photo != null)
-                {
-                    using var stream = await photo.OpenReadAsync();
-                    using var memoryStream = new MemoryStream();
-                    await stream.CopyToAsync(memoryStream);
-                    var bytes = memoryStream.ToArray();
-                    
-                    FotoBase64 = $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
-                    
-                    // Limpiamos resultados anteriores
-                    ProductoDetectado = "";
-                    CantidadEntrante = 1;
-                    StateHasChanged();
-                }
-            }
-        }
-        catch (Exception ex)
+        if (status == PermissionStatus.Granted)
         {
-            Console.WriteLine($"Error de cámara: {ex.Message}");
+            // Aquí va tu código actual de abrir la cámara
         }
     }
+    catch (Exception ex)
+    {
+        // Esto evitará el cierre repentino y te dirá qué pasa
+        Console.WriteLine($"Error: {ex.Message}");
+    }
+}
 
     async Task AnalizarConIA()
     {

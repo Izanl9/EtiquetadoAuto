@@ -1,60 +1,41 @@
 @page "/inventory"
-@namespace EtiquetadoAuto.Pages
-@using EtiquetadoAuto.Models
-@using EtiquetadoAuto.Services
-@inject StockService StockService
+@inject EtiquetadoAuto.Services.StockService StockService
 
-<div class="container mt-3">
-    <h4 class="mb-4"> Inventario (Nube)</h4>
+<h3>Inventario en la Nube</h3>
 
-    @if (productos == null)
-    {
-        <div class="text-center">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p>Sincronizando con Firebase...</p>
-        </div>
-    }
-    else
-    {
-        <div class="list-group">
+@if (productos == null)
+{
+    <p>Cargando datos de Firebase...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Cantidad</th>
+            </tr>
+        </thead>
+        <tbody>
             @foreach (var prod in productos)
             {
-                <div class="list-group-item d-flex justify-content-between align-items-center shadow-sm mb-2">
-                    <div>
-                        <h6 class="mb-0 text-primary">@prod.Id</h6>
-                        <small class="text-muted">Último cambio: @prod.LastUpdate.ToShortTimeString()</small>
-                    </div>
-                    <div class="text-end">
-                        <span class="badge bg-dark fs-6">Stock: @prod.Quantity</span>
-                    </div>
-                </div>
+                <tr>
+                    <td>@prod.Codigo</td>
+                    <td>@prod.Nombre</td>
+                    <td>@prod.Cantidad</td>
+                </tr>
             }
-        </div>
-    }
-</div>
+        </tbody>
+    </table>
+}
 
 @code {
-private List<Product> productos = new(); 
-    private string errorMessage;
+    private List<EtiquetadoAuto.Models.Producto> productos;
 
     protected override async Task OnInitializedAsync()
     {
-        try 
-        {
-            productos = await StockService.GetProductsAsync();
-            if (productos == null) productos = new List<Product>();
-        }
-        catch (Exception ex) 
-        {
-            errorMessage = "Error de conexión: " + ex.Message;
-            productos = new List<Product>(); // Evita que el foreach de error
-        }
+        // Aquí llamamos a la función que mencionamos antes
+        productos = await StockService.GetStockAsync();
     }
 }
-
-@if (productos == null) {
-    <p><em>Cargando inventario...</em></p>
-} else if (!string.IsNullOrEmpty(errorMessage)) {
-    <p style="color:red">@errorMessage</p>
-} else {
-    }
