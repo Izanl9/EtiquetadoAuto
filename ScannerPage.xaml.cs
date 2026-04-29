@@ -2,9 +2,9 @@ using Microsoft.Maui.Controls;
 
 namespace EtiquetadoAuto.Pages
 {
-    public partial class InventoryPage : ContentPage
+    public partial class ScannerPage : ContentPage
     {
-        public InventoryPage()
+        public ScannerPage()
         {
             InitializeComponent();
         }
