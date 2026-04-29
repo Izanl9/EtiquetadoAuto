@@ -2,17 +2,17 @@
 <Shell x:Class="EtiquetadoAuto.AppShell"
        xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-       xmlns:content="clr-namespace:EtiquetadoAuto.Pages"
+       xmlns:content="clr-namespace:EtiquetadoAuto"
        Shell.TabBarBackgroundColor="White"
        Shell.TabBarForegroundColor="#2196F3"
        Shell.TabBarUnselectedColor="#757575">
-
+       
     <TabBar>
         <Tab Title="Escáner">
-            <ShellContent ContentTemplate="{DataTemplate content:ScannerPage}" />
+            <ShellContent ContentTemplate="{DataTemplate local:ScannerPage}" />
         </Tab>
         <Tab Title="Inventario">
-            <ShellContent ContentTemplate="{DataTemplate content:InventoryPage}" />
+            <ShellContent ContentTemplate="{DataTemplate local:InventoryPage}" />
         </Tab>
     </TabBar>
 </Shell>

@@ -1,12 +1,9 @@
-using Microsoft.Maui.Controls;
+namespace EtiquetadoAuto; 
 
-namespace EtiquetadoAuto.Pages
+public partial class InventoryPage : ContentPage
 {
-    public partial class InventoryPage : ContentPage
+    public InventoryPage()
     {
-        public InventoryPage()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

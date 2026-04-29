@@ -1,12 +1,8 @@
-using Microsoft.Maui.Controls;
-
-namespace EtiquetadoAuto.Pages
+namespace EtiquetadoAuto; 
+public partial class ScannerPage : ContentPage
 {
-    public partial class ScannerPage : ContentPage
+    public ScannerPage()
     {
-        public ScannerPage()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }
