@@ -34,12 +34,14 @@ jobs:
       run: dotnet restore EtiquetadoAuto.csproj
 
     - name: Compilar APK (Release)
-      run: dotnet publish EtiquetadoAuto.csproj -f net8.0-android -c Release -p:RuntimeIdentifier=android-arm64 -p:StaticWebAssetsEnabled=true --no-restore
+      # Quitamos -p:StaticWebAssetsEnabled=true que es lo que rompe el build de Blazor Hybrid
+      # Usamos el comando estándar de MAUI para Android
+      run: dotnet publish EtiquetadoAuto.csproj -f net8.0-android -c Release -p:AndroidKeyStore=false --no-restore
 
     - name: Guardar el archivo APK
       uses: actions/upload-artifact@v4
       with:
         name: LogisticaVision-APK
         path: |
+          **/bin/Release/net8.0-android/*.apk
           **/bin/Release/net8.0-android/publish/*.apk
-          **/*.apk
