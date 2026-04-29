@@ -13,10 +13,18 @@ jobs:
     - name:  Descargar el código
       uses: actions/checkout@v4
 
-    - name:  Configurar .NET 8
+    - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
+    - name: Install MAUI Workloads
+      run: dotnet workload install android wasm-tools --ignore-failed-sources
+
+    - name: Restore dependencies
+      run: dotnet restore EtiquetadoAuto.csproj
+
+    - name: Build and Publish
+      run: dotnet publish EtiquetadoAuto.csproj -f net8.0-android -c Release -p:RuntimeIdentifier=android-arm64 -p:StaticWebAssetsEnabled=true
     - name: Install dependencies
       run: dotnet restore EtiquetadoAuto.csproj
     - name: Poner candado a .NET 8 (Bloquear .NET 10)
