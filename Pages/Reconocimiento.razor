@@ -51,14 +51,11 @@
     private List<Producto> productosDetectados = new();
     private bool isProcessing = false;
 
-    // Estas directivas le dicen al compilador dónde buscar las herramientas de Google
-    // Solo se activan cuando compilas para Android
-   #if ANDROID
-    using Google.MLKit.Vision.Text;
-    using Google.MLKit.Vision.Common;
-    using Google.MLKit.Vision.Text.Latin; 
-    #endif
 
+    #if ANDROID
+    // Comenta las líneas de ML Kit temporalmente para ver si el restore pasa
+    // using Xamarin.GooglePlayServices.Vision; 
+    #endif
     private async Task CapturarAlbaran()
     {
         try

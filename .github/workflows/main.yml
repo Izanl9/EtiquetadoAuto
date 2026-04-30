@@ -16,12 +16,16 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    - name: Test de Conexión NuGet
+      run: curl -I https://api.nuget.org/v3/index.json
+
     - name: Instalar Workload
       run: dotnet workload install maui-android
 
-    - name: Publicar APK
+    - name: Compilar APK
       run: |
-        dotnet publish EtiquetadoAuto.csproj \
+        dotnet build EtiquetadoAuto.csproj \
+          -t:Publish \
           -f net8.0-android \
           -c Release \
           -p:AndroidKeyStore=false \
