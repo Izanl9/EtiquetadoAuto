@@ -19,8 +19,11 @@ jobs:
     - name: Test de Conexión NuGet
       run: curl -I https://api.nuget.org/v3/index.json
 
-    - name: Instalar Workload
-      run: dotnet workload install maui-android
+    - name: Instalar Workload y SDK
+      run: |
+        dotnet workload install maui-android
+        # Esto asegura que el compilador tenga las librerías de Android necesarias
+        dotnet build EtiquetadoAuto.csproj -t:InstallAndroidDependencies -p:AndroidSdkDirectory=$ANDROID_SDK_ROOT
 
     - name: Compilar APK
       run: |
