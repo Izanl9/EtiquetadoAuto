@@ -25,9 +25,8 @@ jobs:
     - name: Compilar APK
       run: |
         dotnet build EtiquetadoAuto.csproj \
-          -f net8.0-android \
           -c Release \
-          -p:TargetPlatformVersion=34.0 \
+          -f net8.0-android34.0 \
           -p:SupportedOSPlatformVersion=23.0 \
           -p:AndroidKeyStore=false \
           -p:CheckEolTargetFramework=false \
