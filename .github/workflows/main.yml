@@ -30,5 +30,4 @@ jobs:
           -c Release \
           -p:AndroidKeyStore=false \
           -p:CheckEolTargetFramework=false \
-          -p:NoWarn=NETSDK1202 \
-          --source "https://api.nuget.org/v3/index.json"
+          -p:NoWarn=NETSDK1202
