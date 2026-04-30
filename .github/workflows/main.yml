@@ -32,7 +32,7 @@ jobs:
     - name: Restaurar dependencias
       run: |
         dotnet nuget add source https://api.nuget.org/v3/index.json -n nuget.org || true
-        dotnet restore EtiquetadoAuto.csproj --no-cache  
+        dotnet restore EtiquetadoAuto.csproj --no-cache 
     
     - name: Limpiar y Compilar
       # Añadimos --no-cache para evitar que use archivos temporales corruptos
