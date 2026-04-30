@@ -26,8 +26,9 @@ jobs:
       run: |
         dotnet build EtiquetadoAuto.csproj \
           -c Release \
-          -f net8.0-android34.0 \
-          -p:SupportedOSPlatformVersion=23.0 \
+          -f net8.0-android \
+          -p:SupportedOSPlatformVersion=21.0 \
+          -p:TargetPlatformVersion=21.0 \
           -p:AndroidKeyStore=false \
           -p:CheckEolTargetFramework=false \
-          -p:NoWarn=NETSDK1202
+          -p:NoWarn=NETSDK1202,NETSDK1135,NETSDK1140

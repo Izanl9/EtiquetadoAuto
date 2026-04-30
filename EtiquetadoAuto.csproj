@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
 	<PropertyGroup>
-		<TargetFrameworks>net8.0-android34.0</TargetFrameworks>
+		<TargetFrameworks>net8.0-android</TargetFrameworks>
 		<OutputType>Exe</OutputType>
 		<UseMaui>true</UseMaui>
 		<SingleProject>true</SingleProject>
@@ -9,7 +9,7 @@
 		<Nullable>enable</Nullable>
 
 		<CheckEolTargetFramework>false</CheckEolTargetFramework>
-		<NoWarn>$(NoWarn);NETSDK1202</NoWarn>
+		<NoWarn>$(NoWarn);NETSDK1202;NETSDK1135;NETSDK1140</NoWarn>
 
 		<ApplicationTitle>EtiquetadoAuto</ApplicationTitle>
 		<ApplicationId>com.companyname.etiquetadoauto</ApplicationId>
