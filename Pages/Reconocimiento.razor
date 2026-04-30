@@ -2,6 +2,8 @@
 @using EtiquetadoAuto.Models
 @using Microsoft.Maui.Media
 @using Microsoft.JSInterop
+@using Xamarin.Google.MLKit.Vision.Common
+@using Xamarin.Google.MLKit.Vision.Text
 @inject IJSRuntime JSRuntime
 
 <div class="container mt-4">
@@ -51,12 +53,6 @@
     private List<Producto> productosDetectados = new();
     private bool isProcessing = false;
 
-
-    ##if ANDROID
-    using Xamarin.Google.MLKit.Vision.Common;
-    using Xamarin.Google.MLKit.Vision.Text;
-    // using Xamarin.Google.MLKit.Vision.Text.Latin; 
-    #endif
     private async Task CapturarAlbaran()
     {
         try
@@ -72,16 +68,23 @@
             string textoDetectado = "";
 
             #if ANDROID
-            // Código real de OCR para Android
+            // Código real de OCR para Android con rutas completas para evitar errores CS0103
             var javaFile = new Java.IO.File(photo.FullPath);
             var imageUri = Android.Net.Uri.FromFile(javaFile);
-            var image = VisionCommon.InputImage.FromFilePath(Android.App.Application.Context, imageUri);
             
-            var recognizer = TextRecognition.TextRecognition.GetClient(LatinId.TextRecognizerOptions.DefaultOptions);
+            // 1. Cargamos la imagen
+            var image = Xamarin.Google.MLKit.Vision.Common.InputImage.FromFilePath(Android.App.Application.Context, imageUri);
             
+            // 2. Configuramos el reconocedor (usamos el Latin por defecto)
+            var options = Xamarin.Google.MLKit.Vision.Text.Latin.TextRecognizerOptions.DefaultOptions;
+            var recognizer = Xamarin.Google.MLKit.Vision.Text.TextRecognition.GetClient(options);
+            
+            // 3. Procesamos la imagen
             var result = await recognizer.Process(image);
-            textoDetectado = result.GetText();
-     
+            
+            // 4. Extraemos el texto del resultado
+            var visionText = (Xamarin.Google.MLKit.Vision.Text.Text)result;
+            textoDetectado = visionText.Text;
             #endif
 
             ProcesarTexto(textoDetectado);
@@ -103,7 +106,6 @@
         var lineas = texto.Split('\n');
         foreach (var linea in lineas)
         {
-            // Lógica simple: busca un número y el resto es el nombre
             var match = System.Text.RegularExpressions.Regex.Match(linea, @"(\d+)");
             if (match.Success)
             {
