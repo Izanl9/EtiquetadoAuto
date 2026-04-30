@@ -83,9 +83,7 @@
             
             var result = await recognizer.Process(image);
             textoDetectado = result.GetText();
-            #else
-            // Simulación para cuando pruebas en Windows/Browser
-            textoDetectado = "PRODUCTO PRUEBA 5\nCAJA CLAVOS 10";
+     
             #endif
 
             ProcesarTexto(textoDetectado);

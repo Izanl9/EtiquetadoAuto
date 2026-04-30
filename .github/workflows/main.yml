@@ -21,15 +21,14 @@ jobs:
     - name: Instalar Workload Android
       run: dotnet workload install maui-android
 
-    - name: Restaurar y Publicar
-      # Combinamos para que el flag de CheckEol se aplique a todo el proceso
+    - name: Compilar APK
+      # Usamos -p:CheckEolTargetFramework=false por si acaso el .csproj no fuera suficiente
       run: |
         dotnet publish EtiquetadoAuto.csproj \
           -f net8.0-android \
           -c Release \
           -p:AndroidKeyStore=false \
-          -p:CheckEolTargetFramework=false \
-          -p:RestoreIgnoreFailedSources=true
+          -p:CheckEolTargetFramework=false
 
     - name: Guardar APK
       uses: actions/upload-artifact@v4

@@ -17,7 +17,9 @@
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
 		
-		<RestoreSources>https://api.nuget.org/v3/index.json;$(RestoreSources)</RestoreSources>
+		<CheckEolTargetFramework>false</CheckEolTargetFramework>
+		<SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
+		<RestoreSources>https://api.nuget.org/v3/index.json</RestoreSources>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -29,7 +31,7 @@
 		<PackageReference Include="QuestPDF" Version="2024.10.1" />
 		<PackageReference Include="InTheHand.Net.Bluetooth" Version="4.1.40" />
 		
-		<PackageReference Include="Xamarin.GooglePlayServices.MLKit.TextRecognition" Version="116.0.0.4" />
+		<PackageReference Include="Google.MLKit.TextRecognition.Latin" Version="1.0.0.5" />
 	</ItemGroup>
 
 	<ItemGroup>
