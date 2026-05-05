@@ -20,15 +20,16 @@ namespace EtiquetadoAuto.Services
             {
                 container.Page(page =>
                 {
-                    page.Size(PageSizes.A4);
+                    // 1. Ruta completa para que C# sepa qué es un A4
+                    page.Size(QuestPDF.Helpers.PageSizes.A4);
                     page.Margin(1, Unit.Centimetre);
                     
-                    // ¡AQUÍ ESTÁ EL ARREGLO! Especificamos de dónde viene el Color
-                    page.PageColor(QuestPDF.Helpers.Colors.White);
+                    // 2. Colores Hexadecimales puros (¡cero conflictos!)
+                    page.PageColor("#FFFFFF"); // Fondo Blanco
                     page.DefaultTextStyle(x => x.FontSize(12));
 
                     page.Header().Text("Etiquetas de Inventario")
-                        .SemiBold().FontSize(20).FontColor(QuestPDF.Helpers.Colors.BlueDarken2);
+                        .SemiBold().FontSize(20).FontColor("#1976D2"); // Azul oscuro
 
                     page.Content().PaddingVertical(1, Unit.Centimetre).Grid(grid =>
                     {
@@ -38,10 +39,14 @@ namespace EtiquetadoAuto.Services
 
                         foreach (var prod in productos)
                         {
-                            grid.Item().Border(1).BorderColor(QuestPDF.Helpers.Colors.GreyLighten1).Padding(15).Column(col =>
+                            // Borde Gris claro (#BDBDBD)
+                            grid.Item().Border(1).BorderColor("#BDBDBD").Padding(15).Column(col =>
                             {
                                 col.Item().Text(prod.Nombre).Bold().FontSize(16);
-                                col.Item().Text($"CÓDIGO: {prod.Codigo}").FontColor(QuestPDF.Helpers.Colors.GreyDarken2);
+                                
+                                // Texto Gris oscuro (#616161)
+                                col.Item().Text($"CÓDIGO: {prod.Codigo}").FontColor("#616161"); 
+                                
                                 col.Item().PaddingTop(5).Text($"CANTIDAD: {prod.Cantidad}").FontSize(14).SemiBold();
                             });
                         }
