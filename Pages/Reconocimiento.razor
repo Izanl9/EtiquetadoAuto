@@ -55,23 +55,29 @@
 @code {
     private List<Producto> productosDetectados = new();
     private bool isProcessing = false;
+    
+    // 1. ¡AQUÍ! Declaramos la variable que faltaba
+    private string textoDetectado = "Esperando albarán..."; 
 
-   private async Task TomarFoto()
+    // 2. ¡AQUÍ! Le cambiamos el nombre para que coincida con el botón
+    private async Task CapturarAlbaran()
     {
         try
         {
+            isProcessing = true; // Activamos tu spinner de carga
             textoDetectado = "Abriendo cámara...";
-            StateHasChanged(); // Avisamos de que cambia el texto
+            StateHasChanged(); 
 
             var photo = await MediaPicker.CapturePhotoAsync();
             if (photo == null)
             {
                 textoDetectado = "Foto cancelada.";
+                isProcessing = false;
                 return;
             }
 
             textoDetectado = "Procesando imagen con IA...";
-            StateHasChanged(); // Avisamos de que estamos procesando
+            StateHasChanged(); 
 
             #if ANDROID
             var javaFile = new Java.IO.File(photo.FullPath);
@@ -89,16 +95,20 @@
             {
                 textoDetectado = "No se detectó ningún texto claro en la imagen.";
             }
+            else
+            {
+                // 3. ¡AQUÍ! Conectamos el texto leído con tu método para extraer los productos
+                ProcesarTexto(textoDetectado);
+            }
             #endif
         }
         catch (Exception ex)
         {
-            // Si algo explota (permisos, librerías, etc.), lo veremos en la pantalla del móvil
             textoDetectado = $"ERROR: {ex.Message}";
         }
         finally
         {
-            // Pase lo que pase, obligamos a la interfaz a actualizarse
+            isProcessing = false; // Apagamos el spinner
             StateHasChanged();
         }
     }
@@ -125,5 +135,6 @@
     {
         await JSRuntime.InvokeVoidAsync("alert", "Importación completada.");
         productosDetectados.Clear();
+        textoDetectado = "Esperando nuevo albarán...";
     }
 }
