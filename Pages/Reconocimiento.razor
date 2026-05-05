@@ -6,6 +6,8 @@
 @inject IJSRuntime JSRuntime
 @using EtiquetadoAuto.Services
 @inject DatabaseService DB
+@inject EtiquetadoAuto.Services.PdfService GeneradorPdf
+
 
 <div class="container mt-4">
     <div class="card shadow-sm">
@@ -37,7 +39,7 @@
             {
                 <hr />
                 <h5 class="text-start">Productos Detectados:</h5>
-                <ul class="list-group">
+                <ul class="list-group mb-3">
                     @foreach (var prod in productosDetectados)
                     {
                         <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -46,9 +48,15 @@
                         </li>
                     }
                 </ul>
-                <button class="btn btn-primary mt-3 w-100" @onclick="ConfirmarCarga">
-                    Confirmar e Importar al Inventario
-                </button>
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-info text-white" @onclick="ImprimirEtiquetasDetectadas">
+                        <i class="oi oi-print"></i> Imprimir Etiquetas de este Albarán
+                    </button>
+                    <button class="btn btn-primary" @onclick="ConfirmarCarga">
+                        Confirmar e Importar al Inventario
+                    </button>
+                </div>
             }
         </div>
     </div>
@@ -150,4 +158,25 @@
         textoDetectado = "Esperando nuevo albarán...";
         StateHasChanged();
     }
+    private async Task ImprimirEtiquetasDetectadas()
+    {
+        if (productosDetectados == null || !productosDetectados.Any()) return;
+
+        try
+        {
+            // Generamos el PDF usando solo lo que la cámara acaba de leer
+            string rutaArchivo = GeneradorPdf.GenerarEtiquetas(productosDetectados);
+
+            // Abrimos el PDF para que el usuario lo mande a la impresora
+            await Launcher.OpenAsync(new OpenFileRequest
+            {
+                Title = "Etiquetas Albarán Actual",
+                File = new ReadOnlyFile(rutaArchivo)
+            });
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al generar etiquetas: {ex.Message}");
+        }
+    } 
 }
