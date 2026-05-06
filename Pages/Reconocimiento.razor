@@ -2,17 +2,15 @@
 @using EtiquetadoAuto.Models
 @using Microsoft.Maui.Media
 @using Microsoft.JSInterop
-@using Android.Gms.Extensions 
-@inject IJSRuntime JSRuntime
 @using EtiquetadoAuto.Services
+@inject IJSRuntime JSRuntime
 @inject DatabaseService DB
-@inject EtiquetadoAuto.Services.PdfService GeneradorPdf
-
+@inject PdfService GeneradorPdf
 
 <div class="container mt-4">
     <div class="card shadow-sm">
         <div class="card-header bg-primary text-white text-center">
-            <h4><i class="oi oi-camera"></i> Reconocimiento de Albarán</h4>
+            <h4 class="mb-0"><i class="oi oi-camera"></i> Reconocimiento de Albarán</h4>
         </div>
         <div class="card-body text-center">
             <p class="text-muted">Captura una foto del albarán para detectar automáticamente los productos y cantidades.</p>
@@ -21,30 +19,49 @@
             {
                 <div class="my-4">
                     <div class="spinner-border text-primary" role="status"></div>
-                    <p class="mt-2">Procesando imagen...</p>
+                    <p class="mt-2">@estadoMensaje</p>
                 </div>
             }
             else
             {
-                <button class="btn btn-lg btn-success w-100 mb-3" @onclick="CapturarAlbaran">
-                    <i class="oi oi-camera"></i> Tomar Foto
+                <button class="btn btn-lg btn-success w-100 mb-3 shadow" @onclick="CapturarAlbaran">
+                    <i class="oi oi-camera"></i> TOMAR FOTO
                 </button>
-                <div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 8px;">
-                    <h3>Texto Detectado:</h3>
-                    <p>@textoDetectado</p>
+            }
+
+            @if (!string.IsNullOrEmpty(textoDetectado) && textoDetectado != "Esperando albarán...")
+            {
+                <div class="mt-3 p-3 bg-light border rounded text-start">
+                    <h6 class="fw-bold">Texto en bruto detectado:</h6>
+                    <small class="text-muted">@textoDetectado</small>
                 </div>
             }
 
             @if (productosDetectados.Any())
             {
                 <hr />
+                <h5 class="text-start mb-3">Productos Identificados:</h5>
+                <ul class="list-group mb-3 shadow-sm">
+                    @foreach (var prod in productosDetectados)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>@prod.Nombre</strong>
+                                <br />
+                                <small class="text-muted">Ref: @prod.Codigo</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill fs-6">x @prod.Cantidad</span>
+                        </li>
+                    }
+                </ul>
+
                 <div class="d-grid gap-2">
                     <button class="btn btn-lg btn-primary shadow" @onclick="ProcesarTodo">
-                        <i class="oi oi-check"></i> IMPRIMIR Y GUARDAR EN INVENTARIO
+                        <i class="oi oi-print"></i> IMPRIMIR Y GUARDAR
                     </button>
-        
-                    <button class="btn btn-outline-danger btn-sm mt-2" @onclick="() => productosDetectados.Clear()">
-                        Cancelar
+                    
+                    <button class="btn btn-outline-danger btn-sm" @onclick="LimpiarEscaneo">
+                        Cancelar y Borrar
                     </button>
                 </div>
             }
@@ -55,28 +72,25 @@
 @code {
     private List<Producto> productosDetectados = new();
     private bool isProcessing = false;
-    
-    // 1. ¡AQUÍ! Declaramos la variable que faltaba
-    private string textoDetectado = "Esperando albarán..."; 
+    private string textoDetectado = "Esperando albarán...";
+    private string estadoMensaje = "Procesando...";
 
-    // 2. ¡AQUÍ! Le cambiamos el nombre para que coincida con el botón
     private async Task CapturarAlbaran()
     {
         try
         {
-            isProcessing = true; // Activamos tu spinner de carga
-            textoDetectado = "Abriendo cámara...";
+            isProcessing = true;
+            estadoMensaje = "Abriendo cámara...";
             StateHasChanged(); 
 
             var photo = await MediaPicker.CapturePhotoAsync();
             if (photo == null)
             {
-                textoDetectado = "Foto cancelada.";
                 isProcessing = false;
                 return;
             }
 
-            textoDetectado = "Procesando imagen con IA...";
+            estadoMensaje = "Analizando texto con IA...";
             StateHasChanged(); 
 
             #if ANDROID
@@ -93,96 +107,15 @@
             
             if (string.IsNullOrWhiteSpace(textoDetectado))
             {
-                textoDetectado = "No se detectó ningún texto claro en la imagen.";
+                await JSRuntime.InvokeVoidAsync("alert", "No se encontró texto legible. Intenta con más luz.");
             }
             else
             {
-                // 3. ¡AQUÍ! Conectamos el texto leído con tu método para extraer los productos
-                ProcesarTextoDetectado(resultado);
+                ProcesarTextoDetectado(textoDetectado);
             }
+            #else
+            textoDetectado = "El OCR solo funciona en dispositivos Android reales.";
             #endif
-        }
-        catch (Exception ex)
-        {
-            textoDetectado = $"ERROR: {ex.Message}";
-        }
-        finally
-        {
-            isProcessing = false; // Apagamos el spinner
-            StateHasChanged();
-        }
-    }
-
-    private void ProcesarTextoDetectado(string texto)
-{
-    if (string.IsNullOrWhiteSpace(texto)) return;
-    
-    // Dividimos por líneas y limpiamos espacios raros
-    var lineas = texto.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-    productosDetectados.Clear();
-
-    foreach (var linea in lineas)
-    {
-        string limpia = linea.Trim();
-        if (limpia.Length < 3) continue;
-
-        // Buscamos: [Número] [Cualquier texto]
-        var match = System.Text.RegularExpressions.Regex.Match(limpia, @"(\d+)\s+(.+)");
-
-        if (match.Success)
-        {
-            int cant = int.Parse(match.Groups[1].Value);
-            string nombre = match.Groups[2].Value.Trim();
-            
-            productosDetectados.Add(new Producto { 
-                Nombre = nombre, 
-                Cantidad = cant, 
-                Codigo = "EAN-" + DateTime.Now.ToString("mm") 
-            });
-        }
-        else 
-        {
-            // Si no hay número, pero hay texto (como "Humidificador"),
-            // lo añadimos con cantidad 1 por defecto para que no se pierda.
-            productosDetectados.Add(new Producto { 
-                Nombre = limpia, 
-                Cantidad = 1, 
-                Codigo = "OCR-MANUAL" 
-            });
-        }
-    }
-    StateHasChanged();
-}
-
-    private async Task ProcesarTodo()
-    {
-        if (!productosDetectados.Any()) return;
-
-        try
-        {
-            isProcessing = true;
-            StateHasChanged();
-
-            // 1. GUARDAR EN BASE DE DATOS
-            foreach (var prod in productosDetectados)
-            {
-                await DB.GuardarProducto(prod);
-            }
-
-            // 2. GENERAR E IMPRIMIR PDF (Etiquetas individuales)
-            string rutaArchivo = GeneradorPdf.GenerarEtiquetas(productosDetectados);
-            
-            await Launcher.Default.OpenAsync(new OpenFileRequest
-            {
-                Title = "Imprimir Etiquetas",
-                File = new ReadOnlyFile(rutaArchivo)
-            });
-
-            // 3. LIMPIAR TODO PARA EL SIGUIENTE
-            productosDetectados.Clear();
-            textoDetectado = "Albarán procesado con éxito.";
-            
-            await JSRuntime.InvokeVoidAsync("alert", "Guardado e impresión enviada.");
         }
         catch (Exception ex)
         {
@@ -193,5 +126,86 @@
             isProcessing = false;
             StateHasChanged();
         }
+    }
+
+    private void ProcesarTextoDetectado(string texto)
+    {
+        var lineas = texto.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        productosDetectados.Clear();
+
+        foreach (var linea in lineas)
+        {
+            // Limpieza: quitamos símbolos raros pero dejamos tildes y eñes
+            string limpia = System.Text.RegularExpressions.Regex.Replace(linea, @"[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]", "").Trim();
+            if (limpia.Length < 3) continue;
+
+            // Patrón: [Número/Cantidad] [Nombre]
+            var match = System.Text.RegularExpressions.Regex.Match(limpia, @"(\d+)\s+(.+)");
+
+            if (match.Success)
+            {
+                int cant = int.Parse(match.Groups[1].Value);
+                string nombre = match.Groups[2].Value.Trim();
+                
+                productosDetectados.Add(new Producto { 
+                    Nombre = nombre, 
+                    Cantidad = cant, 
+                    Codigo = "OCR-" + DateTime.Now.ToString("mmss") 
+                });
+            }
+            else 
+            {
+                // El "Salvavidas" para el Humidificador: Si no hay número, lo añadimos con cantidad 1
+                productosDetectados.Add(new Producto { 
+                    Nombre = limpia, 
+                    Cantidad = 1, 
+                    Codigo = "MAN-" + DateTime.Now.ToString("mmss") 
+                });
+            }
+        }
+    }
+
+    private async Task ProcesarTodo()
+    {
+        try
+        {
+            isProcessing = true;
+            estadoMensaje = "Guardando e imprimiendo...";
+            StateHasChanged();
+
+            // 1. Guardar en SQLite (La lógica de suma ya está en el servicio)
+            foreach (var prod in productosDetectados)
+            {
+                await DB.GuardarProducto(prod);
+            }
+
+            // 2. Generar el PDF con etiquetas individuales
+            string rutaArchivo = GeneradorPdf.GenerarEtiquetas(productosDetectados);
+            
+            await Launcher.Default.OpenAsync(new OpenFileRequest
+            {
+                Title = "Etiquetas de Albarán",
+                File = new ReadOnlyFile(rutaArchivo)
+            });
+
+            // 3. Resetear pantalla
+            LimpiarEscaneo();
+            await JSRuntime.InvokeVoidAsync("alert", "Inventario actualizado y etiquetas generadas.");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al procesar: {ex.Message}");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void LimpiarEscaneo()
+    {
+        productosDetectados.Clear();
+        textoDetectado = "Esperando albarán...";
     }
 }

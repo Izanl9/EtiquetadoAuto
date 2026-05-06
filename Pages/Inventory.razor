@@ -1,89 +1,85 @@
 @page "/inventory"
 @using EtiquetadoAuto.Models
 @using EtiquetadoAuto.Services
-@inject DatabaseService DB
-@implements IDisposable
 @using Microsoft.AspNetCore.Components.Routing
+@implements IDisposable
+@inject DatabaseService DB
 
 <div class="container mt-4">
     <div class="card shadow-sm">
-        <div class="card-header bg-success text-white text-center">
-            <h4><i class="oi oi-list"></i> Inventario Actual</h4>
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0"><i class="oi oi-list"></i> Inventario</h4>
+            <span class="badge bg-light text-dark">@productos.Count Items</span>
         </div>
         <div class="card-body">
-            
             @if (productos == null)
             {
-                <div class="text-center my-4">
-                    <div class="spinner-border text-success" role="status"></div>
-                    <p class="mt-2">Cargando base de datos...</p>
-                </div>
+                <div class="text-center"><div class="spinner-border text-success"></div></div>
             }
             else if (!productos.Any())
             {
-                <div class="alert alert-info text-center">
-                    El inventario está vacío. ¡Ve a Reconocimiento y escanea tu primer albarán!
-                </div>
+                <div class="alert alert-info">No hay productos guardados.</div>
             }
             else
             {
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover">
+                    <table class="table table-hover">
                         <thead class="table-dark">
                             <tr>
-                                <th>Código</th>
                                 <th>Nombre</th>
-                                <th>Cantidad</th>
+                                <th>Código</th>
+                                <th>Cant.</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var producto in productos)
+                            @foreach (var p in productos)
                             {
                                 <tr>
-                                    <td><span class="badge bg-secondary">@producto.Codigo</span></td>
-                                    <td>@producto.Nombre</td>
-                                    <td><strong>@producto.Cantidad</strong></td>
+                                    <td>@p.Nombre</td>
+                                    <td><small class="text-muted">@p.Codigo</small></td>
+                                    <td><span class="badge bg-primary">@p.Cantidad</span></td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
             }
-
         </div>
     </div>
 </div>
-
-
-@implements IDisposable
-@using Microsoft.AspNetCore.Components.Routing
 
 @code {
     private List<Producto> productos = new();
 
     protected override async Task OnInitializedAsync()
     {
-        // Nos suscribimos al evento del servicio para que nos avise si hay cambios
-        DB.OnDataChanged += async () => await CargarDatos();
+        // Nos suscribimos al evento para refrescar cuando se guarde algo nuevo
+        DB.OnDataChanged += RefrescarVista;
         await CargarDatos();
     }
 
-    // Este método se ejecuta cuando entramos a la pestaña (soluciona el refresco)
     protected override async Task OnParametersSetAsync()
     {
         await CargarDatos();
     }
 
+    private async void RefrescarVista()
+    {
+        // Usamos InvokeAsync porque el evento viene de otro hilo (la DB)
+        await InvokeAsync(async () => {
+            await CargarDatos();
+            StateHasChanged();
+        });
+    }
+
     private async Task CargarDatos()
     {
         productos = await DB.ObtenerTodos();
-        await InvokeAsync(StateHasChanged);
     }
 
-    // ¡ESTA ES LA FUNCIÓN QUE FALTABA! El inspector CS0535 ya estará contento
     public void Dispose()
     {
-        // Importante: quitamos la suscripción para que no gaste memoria
-        DB.OnDataChanged -= async () => await CargarDatos();
+        // Limpiamos el evento para evitar fugas de memoria
+        DB.OnDataChanged -= RefrescarVista;
     }
 }
