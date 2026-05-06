@@ -113,23 +113,43 @@
         }
     }
 
-    private void ProcesarTexto(string texto)
+    private void ProcesarTextoDetectado(string texto)
+{
+    var lineas = texto.Split('\n');
+    productosDetectados.Clear();
+
+    foreach (var linea in lineas)
     {
-        productosDetectados.Clear();
-        var lineas = texto.Split('\n');
-        foreach (var linea in lineas)
+        if (string.IsNullOrWhiteSpace(linea)) continue;
+
+        // Intentamos extraer: [Número/Cantidad] [Nombre Producto]
+        // Esta Regex busca un número y luego el resto de la frase
+        var match = System.Text.RegularExpressions.Regex.Match(linea, @"(\d+)\s+(.+)");
+
+        if (match.Success)
         {
-            var match = System.Text.RegularExpressions.Regex.Match(linea, @"(\d+)");
-            if (match.Success)
+            int cant = int.Parse(match.Groups[1].Value);
+            string nombre = match.Groups[2].Value.Trim();
+
+            if (!string.IsNullOrEmpty(nombre) && nombre.Length > 2)
             {
                 productosDetectados.Add(new Producto { 
-                    Nombre = linea.Replace(match.Value, "").Trim(), 
-                    Cantidad = int.Parse(match.Value),
-                    Codigo = "OCR-" + Guid.NewGuid().ToString().Substring(0,4)
+                    Nombre = nombre, 
+                    Cantidad = cant, 
+                    Codigo = "GEN-" + DateTime.Now.ToString("mmss") 
                 });
             }
         }
+        else if (linea.Length > 3) // Si no hay número, pero hay una palabra larga (como Humidificador)
+        {
+            productosDetectados.Add(new Producto { 
+                Nombre = linea.Trim(), 
+                Cantidad = 1, 
+                Codigo = "OCR-" + DateTime.Now.ToString("mmss") 
+            });
+        }
     }
+}
 
     private async Task ProcesarTodo()
     {

@@ -17,8 +17,8 @@ namespace EtiquetadoAuto.Services
             _conexion.CreateTableAsync<Producto>().Wait();
         }
 
-        // Método para guardar un producto
-       public async Task GuardarProducto(Producto nuevoProducto)
+        public event Action OnDataChanged;
+        public async Task GuardarProducto(Producto nuevoProducto)
         {
              // Buscamos si ya existe un producto con el mismo nombre (sin importar mayúsculas/minúsculas)
             var productoExistente = await _conexion.Table<Producto>()
@@ -32,10 +32,11 @@ namespace EtiquetadoAuto.Services
                 // Opcional: Actualizar el código si el nuevo trae uno diferente
                 productoExistente.Codigo = nuevoProducto.Codigo; 
                 await _conexion.UpdateAsync(productoExistente);
+                OnDataChanged?.Invoke();
             }
             else
             {
-                // Si no existe, lo insertamos como nuevo
+                OnDataChanged?.Invoke();
                 await _conexion.InsertAsync(nuevoProducto);
             }
         } 

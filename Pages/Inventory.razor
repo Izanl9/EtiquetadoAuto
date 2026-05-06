@@ -2,6 +2,7 @@
 @using EtiquetadoAuto.Models
 @using EtiquetadoAuto.Services
 @inject DatabaseService DB
+@implements IDisposable
 
 <div class="container mt-4">
     <div class="card shadow-sm">
@@ -55,17 +56,22 @@
 @code {
     private List<Producto> productos = new();
 
-    // Este método se dispara cada vez que el componente se carga en el DOM
     protected override async Task OnInitializedAsync()
     {
+        // Suscribirse al evento
+        DB.OnDataChanged += async () => await CargarDatos();
         await CargarDatos();
     }
 
-    // Opcional: Si notas que al volver atrás no refresca, 
-    // puedes usar este evento que detecta cuando la página vuelve a ser el foco
     private async Task CargarDatos()
     {
         productos = await DB.ObtenerTodos();
-        StateHasChanged(); // Forzamos a Blazor a redibujar la UI
+        await InvokeAsync(StateHasChanged); // Forzar refresco visual
+    }
+
+    // Importante: Limpiar la suscripción al cerrar la página
+    public void Dispose()
+    {
+        DB.OnDataChanged -= async () => await CargarDatos();
     }
 }

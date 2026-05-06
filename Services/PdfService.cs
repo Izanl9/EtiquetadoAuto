@@ -38,16 +38,18 @@ namespace EtiquetadoAuto.Services
                         grid.VerticalSpacing(15);
                         grid.HorizontalSpacing(15);
 
-                        foreach (var prod in productosAgrupados) // Usamos la lista agrupada
+                        // Dentro del Grid en PdfService.cs
+                        foreach (var prod in productosAgrupados)
                         {
                             for (int i = 0; i < prod.Cantidad; i++)
                             {
-                                grid.Item().Border(1).BorderColor("#BDBDBD").Padding(10).Column(col =>
+                                // .ShowEntire() es la clave para que no se corte entre páginas
+                                grid.Item().ShowEntire().Border(1).BorderColor("#BDBDBD").Padding(10).Column(col =>
                                 {
-                                    col.Item().Text(prod.Nombre).Bold().FontSize(14);
-                                    col.Item().Text($"CÓDIGO: {prod.Codigo}").FontSize(10).FontColor("#616161");
-                                    col.Item().AlignRight().Text($"Unidad {i + 1} de {prod.Cantidad}").FontSize(8).Italic();
-                                });
+                                col.Item().Text(prod.Nombre.ToUpper()).Bold().FontSize(12);
+                                col.Item().Text($"CÓDIGO: {prod.Codigo}").FontSize(9).FontColor("#616161");
+                                col.Item().AlignRight().Text($"{i + 1} / {prod.Cantidad}").FontSize(8);
+                            });
                             }
                         }
                     });
