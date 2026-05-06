@@ -55,9 +55,17 @@
 @code {
     private List<Producto> productos = new();
 
-    // Cambiamos OnInitialized por OnParametersSet para que se refresque siempre al entrar
-    protected override async Task OnParametersSetAsync()
+    // Este método se dispara cada vez que el componente se carga en el DOM
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDatos();
+    }
+
+    // Opcional: Si notas que al volver atrás no refresca, 
+    // puedes usar este evento que detecta cuando la página vuelve a ser el foco
+    private async Task CargarDatos()
     {
         productos = await DB.ObtenerTodos();
+        StateHasChanged(); // Forzamos a Blazor a redibujar la UI
     }
 }

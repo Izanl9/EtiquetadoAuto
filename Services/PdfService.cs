@@ -13,33 +13,40 @@ namespace EtiquetadoAuto.Services
 
         public string GenerarEtiquetas(List<Producto> productos)
         {
-            var rutaPdf = Path.Combine(FileSystem.CacheDirectory, "Etiquetas_Individuales.pdf");
+            // AGRUPACIÓN: Sumamos elementos con el mismo nombre antes de imprimir
+            var productosAgrupados = productos
+                .GroupBy(p => p.Nombre.Trim().ToLower())
+                .Select(g => new Producto
+                {
+                    Nombre = g.First().Nombre, // Mantenemos el nombre original del primero
+                    Codigo = g.First().Codigo,
+                    Cantidad = g.Sum(p => p.Cantidad) // Sumamos todas las cantidades
+                })
+                .ToList();
+
+            var rutaPdf = Path.Combine(FileSystem.CacheDirectory, "Etiquetas_Consolidadas.pdf");
 
             Document.Create(container =>
             {
                 container.Page(page =>
                 {
-                    page.Size(QuestPDF.Helpers.PageSizes.A4);
-                    page.Margin(1, Unit.Centimetre);
-                    page.PageColor("#FFFFFF");
+                    // . . . (resto de la configuración del PDF)
 
                     page.Content().PaddingVertical(1, Unit.Centimetre).Grid(grid =>
                     {
+                        grid.Columns(2);
                         grid.VerticalSpacing(15);
                         grid.HorizontalSpacing(15);
-                        grid.Columns(2); 
 
-                        foreach (var prod in productos)
+                        foreach (var prod in productosAgrupados) // Usamos la lista agrupada
                         {
-                            // ¡ESTA ES LA MAGIA! Repetimos la etiqueta según la cantidad
                             for (int i = 0; i < prod.Cantidad; i++)
                             {
                                 grid.Item().Border(1).BorderColor("#BDBDBD").Padding(10).Column(col =>
                                 {
                                     col.Item().Text(prod.Nombre).Bold().FontSize(14);
                                     col.Item().Text($"CÓDIGO: {prod.Codigo}").FontSize(10).FontColor("#616161");
-                                    // Ponemos "1 de 1" o simplemente quitamos la cantidad total para no confundir
-                                    col.Item().AlignRight().Text($"Unidad {i + 1}/{prod.Cantidad}").FontSize(8).Italic();
+                                    col.Item().AlignRight().Text($"Unidad {i + 1} de {prod.Cantidad}").FontSize(8).Italic();
                                 });
                             }
                         }

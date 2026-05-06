@@ -18,10 +18,27 @@ namespace EtiquetadoAuto.Services
         }
 
         // Método para guardar un producto
-        public async Task GuardarProducto(Producto producto)
+       public async Task GuardarProducto(Producto nuevoProducto)
         {
-            await _conexion.InsertAsync(producto);
-        }
+             // Buscamos si ya existe un producto con el mismo nombre (sin importar mayúsculas/minúsculas)
+            var productoExistente = await _conexion.Table<Producto>()
+                .Where(p => p.Nombre.ToLower() == nuevoProducto.Nombre.ToLower())
+                .FirstOrDefaultAsync();
+
+            if (productoExistente != null)
+            {
+                // Si existe, sumamos la cantidad y actualizamos
+                productoExistente.Cantidad += nuevoProducto.Cantidad;
+                // Opcional: Actualizar el código si el nuevo trae uno diferente
+                productoExistente.Codigo = nuevoProducto.Codigo; 
+                await _conexion.UpdateAsync(productoExistente);
+            }
+            else
+            {
+                // Si no existe, lo insertamos como nuevo
+                await _conexion.InsertAsync(nuevoProducto);
+            }
+        } 
 
         // Método para ver todos los productos (lo usaremos luego en la pantalla de inventario)
         public async Task<List<Producto>> ObtenerTodos()
