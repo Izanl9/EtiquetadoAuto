@@ -81,31 +81,30 @@
             StateHasChanged(); 
 
             #if ANDROID
-            // 1. Preparar la imagen para ML Kit
             var javaFile = new Java.IO.File(photo.FullPath);
             var imageUri = Android.Net.Uri.FromFile(javaFile);
             var image = Xamarin.Google.MLKit.Vision.Common.InputImage.FromFilePath(Android.App.Application.Context, imageUri);
             
-            // 2. Configurar el reconocedor
             var options = Xamarin.Google.MLKit.Vision.Text.Latin.TextRecognizerOptions.DefaultOptions;
             var recognizer = Xamarin.Google.MLKit.Vision.Text.TextRecognition.GetClient(options);
             
-            // 3. ¡SOLUCIÓN AL ERROR!: Usamos .AsAsync() para convertir la Task de Java a C#
-            // Necesitas el casting a Xamarin.Google.MLKit.Vision.Text.Text para obtener el resultado
-            var result = await Android.Gms.Extensions.TaskExtensions.AsAsync<Xamarin.Google.MLKit.Vision.Text.Text>(recognizer.Process(image));
+            var tcs = new TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text>();
             
+            recognizer.Process(image)
+                .AddOnSuccessListener(new OnSuccessImplementation(tcs))
+                .AddOnFailureListener(new OnFailureImplementation(tcs));
+
+            var result = await tcs.Task;
             textoDetectado = result.GetText();
             
             if (string.IsNullOrWhiteSpace(textoDetectado))
             {
-                await JSRuntime.InvokeVoidAsync("alert", "No se detectó texto. Intenta con más luz.");
+                await JSRuntime.InvokeVoidAsync("alert", "No se detectó texto legible.");
             }
             else
             {
                 ExtraerProductosDelTexto(textoDetectado);
             }
-            #else
-            await JSRuntime.InvokeVoidAsync("alert", "El OCR requiere un dispositivo Android.");
             #endif
         }
         catch (Exception ex)
@@ -195,4 +194,17 @@
         productosDetectados.Clear();
         textoDetectado = "";
     }
+    public class OnSuccessImplementation : Java.Lang.Object, Android.Gms.Tasks.IOnSuccessListener
+    {
+        private readonly TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text> _tcs;
+        public OnSuccessImplementation(TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text> tcs) => _tcs = tcs;
+        public void OnSuccess(Java.Lang.Object result) => _tcs.SetResult((Xamarin.Google.MLKit.Vision.Text.Text)result);
+    }
+
+    public class OnFailureImplementation : Java.Lang.Object, Android.Gms.Tasks.IOnFailureListener
+    {
+        private readonly TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text> _tcs;
+        public OnFailureImplementation(TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text> tcs) => _tcs = tcs;
+        public void OnFailure(Java.Lang.Exception e) => _tcs.SetException(e);
+    }   
 }
