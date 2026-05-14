@@ -118,52 +118,71 @@
         }
     }
 
-    private void ExtraerProductosDelTexto(string texto)
+   private void ExtraerProductosDelTexto(string texto)
     {
         var lineas = texto.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
         productosDetectados.Clear();
 
+        bool leyendoTabla = false;
+        Queue<int> cantidadesPendientes = new Queue<int>(); // Aquí guardaremos los números sueltos "3", "2", "5"...
+
         foreach (var linea in lineas)
         {
             string limpia = linea.Trim();
-            if (limpia.Length < 3) continue;
 
-        // 1. Buscamos CUALQUIER número en la línea (al principio, en medio o al final)
-        // \d+ busca uno o más dígitos
-            var matchNumero = System.Text.RegularExpressions.Regex.Match(limpia, @"\d+");
-
-            if (matchNumero.Success)
+            // 1. DETECTAR EL INICIO DE LA TABLA
+            // Si leemos las cabeceras de la tabla, activamos la lectura y pasamos de línea
+            if (limpia.Contains("Quantitat") || limpia.Contains("Descripció") || limpia.Contains("Descripci"))
             {
-            // Extraemos el número encontrado
-                string cantidadStr = matchNumero.Value;
-            
-            // El nombre será la línea original quitándole el número y limpiando símbolos
-                string nombreSinNumero = limpia.Replace(cantidadStr, "").Trim();
-                string nombreFinal = System.Text.RegularExpressions.Regex.Replace(nombreSinNumero, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]", "").Trim();
-
-                if (nombreFinal.Length > 2)
-                {
-                    productosDetectados.Add(new Producto { 
-                        Nombre = nombreFinal, 
-                        Cantidad = int.Parse(cantidadStr), 
-                        Codigo = "OCR-" + DateTime.Now.ToString("mmss") 
-                    });
-                    continue;
-                }
+                leyendoTabla = true;
+                continue; 
             }
 
-        // 2. Si no hay números
-            string soloTexto = System.Text.RegularExpressions.Regex.Replace(limpia, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]", "").Trim();
-            if (soloTexto.Length > 3)
+            // Si aún no hemos llegado a la tabla (cabeceras, dirección, etc.), ignoramos la línea
+            if (!leyendoTabla) continue;
+
+            // 2. DETECTAR EL FINAL DEL ALBARÁN
+            // Si llegamos a datos del pie de página, dejamos de leer
+            if (limpia.Contains("Fecha") || limpia.Contains("www") || limpia.Contains("@") || limpia.Contains("Du"))
             {
-                productosDetectados.Add(new Producto { 
-                    Nombre = soloTexto, 
-                    Cantidad = 1, 
-                    Codigo = "MAN-" + DateTime.Now.ToString("mmss") 
+                leyendoTabla = false;
+                continue;
+            }
+
+            // 3. CAPTURAR CANTIDADES SUELTAS
+            // Hemos quitado la restricción de "Length < 3". Si la línea es solo un número, a la cola.
+            if (int.TryParse(limpia, out int numeroSuelto))
+            {
+                cantidadesPendientes.Enqueue(numeroSuelto);
+                continue; 
+            }
+
+            // 4. CAPTURAR PRODUCTOS (Con cantidades en la misma línea)
+            // Por si acaso el OCR lee "3 Purgadores" en la misma línea
+            var match = System.Text.RegularExpressions.Regex.Match(limpia, @"^(\d+)\s+(.+)");
+            if (match.Success)
+            {
+                cantidadesPendientes.Enqueue(int.Parse(match.Groups[1].Value));
+                limpia = match.Groups[2].Value; // Dejamos solo el texto para el siguiente paso
+            }
+
+            // 5. PROCESAR EL TEXTO DEL PRODUCTO
+            // Limpiamos símbolos raros, pero dejamos letras, números, guiones y el símbolo ®
+            string nombreFinal = System.Text.RegularExpressions.Regex.Replace(limpia, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
+
+            if (nombreFinal.Length > 4) 
+            {
+                // ¿Tenemos números en la sala de espera? Sacamos el primero. Si no hay, ponemos 1.
+                int cantidadAsignada = cantidadesPendientes.Count > 0 ? cantidadesPendientes.Dequeue() : 1;
+
+                productosDetectados.Add(new Producto {
+                    Nombre = nombreFinal,
+                    Cantidad = cantidadAsignada,
+                    Codigo = "OCR-" + DateTime.Now.ToString("mmss")
                 });
             }
         }
-    }
+    } 
 
     private async Task ProcesarTodo()
     {
