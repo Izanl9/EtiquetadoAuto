@@ -118,61 +118,82 @@
         }
     }
 
-   private void ExtraerProductosDelTexto(string texto)
+    private void ExtraerProductosDelTexto(string texto)
     {
         var lineas = texto.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
         productosDetectados.Clear();
 
-        bool leyendoTabla = false;
-        Queue<int> cantidadesPendientes = new Queue<int>(); // Aquí guardaremos los números sueltos "3", "2", "5"...
+        Queue<int> cantidadesPendientes = new Queue<int>();
 
         foreach (var linea in lineas)
         {
             string limpia = linea.Trim();
 
-            // 1. DETECTAR EL INICIO DE LA TABLA
-            // Si leemos las cabeceras de la tabla, activamos la lectura y pasamos de línea
-            if (limpia.Contains("Quantitat") || limpia.Contains("Descripció") || limpia.Contains("Descripci"))
+            // ---------------------------------------------------------
+            // 1. FILTROS DE BASURA: Ignoramos lo que claramente no es un producto
+            // ---------------------------------------------------------
+            if (string.IsNullOrWhiteSpace(limpia)) continue;
+            if (limpia.Contains("@") || limpia.Contains("www.")) continue;
+        
+            // Filtramos fechas (ej. 29/05/2026 o 29-05-2026)
+            if (System.Text.RegularExpressions.Regex.IsMatch(limpia, @"\d{2}[/-]\d{2}[/-]\d{2,4}")) continue;
+
+            // ---------------------------------------------------------
+            // 2. CAZADOR DE CANTIDADES SUELTAS (El bloque numérico de la tabla)
+            // ---------------------------------------------------------
+            // Intentamos ver si la línea es SOLO un número.
+            // Reemplazamos espacios por si lee "00 44 12" y lo junta
+            string posibleNumero = limpia.Replace(" ", ""); 
+        
+            if (int.TryParse(posibleNumero, out int numeroSuelto))
             {
-                leyendoTabla = true;
+                // LÓGICA CLAVE: Un albarán no suele tener 1 millón de unidades.
+                // Si el número es mayor a 100,000, seguramente es un código de barras, 
+                // un número de serie o un Teléfono (como tu 666004412). ¡Lo ignoramos!
+                if (numeroSuelto > 0 && numeroSuelto < 100000)
+                {
+                    cantidadesPendientes.Enqueue(numeroSuelto);
+                }
                 continue; 
             }
 
-            // Si aún no hemos llegado a la tabla (cabeceras, dirección, etc.), ignoramos la línea
-            if (!leyendoTabla) continue;
-
-            // 2. DETECTAR EL FINAL DEL ALBARÁN
-            // Si llegamos a datos del pie de página, dejamos de leer
-            if (limpia.Contains("Fecha") || limpia.Contains("www") || limpia.Contains("@") || limpia.Contains("Du"))
+            // ---------------------------------------------------------
+            // 3. CAZADOR DE LÍNEAS COMBINADAS (Número + Texto)
+            // ---------------------------------------------------------
+            // Por si acaso el OCR lee la fila perfecta: "3 Purgadores de vapor"
+            var matchCombinado = System.Text.RegularExpressions.Regex.Match(limpia, @"^(\d+)\s+(.+)");
+            if (matchCombinado.Success)
             {
-                leyendoTabla = false;
-                continue;
+                cantidadesPendientes.Enqueue(int.Parse(matchCombinado.Groups[1].Value));
+                limpia = matchCombinado.Groups[2].Value; // Nos quedamos solo con el texto para procesarlo abajo
             }
 
-            // 3. CAPTURAR CANTIDADES SUELTAS
-            // Hemos quitado la restricción de "Length < 3". Si la línea es solo un número, a la cola.
-            if (int.TryParse(limpia, out int numeroSuelto))
-            {
-                cantidadesPendientes.Enqueue(numeroSuelto);
-                continue; 
-            }
-
-            // 4. CAPTURAR PRODUCTOS (Con cantidades en la misma línea)
-            // Por si acaso el OCR lee "3 Purgadores" en la misma línea
-            var match = System.Text.RegularExpressions.Regex.Match(limpia, @"^(\d+)\s+(.+)");
-            if (match.Success)
-            {
-                cantidadesPendientes.Enqueue(int.Parse(match.Groups[1].Value));
-                limpia = match.Groups[2].Value; // Dejamos solo el texto para el siguiente paso
-            }
-
-            // 5. PROCESAR EL TEXTO DEL PRODUCTO
-            // Limpiamos símbolos raros, pero dejamos letras, números, guiones y el símbolo ®
+            // ---------------------------------------------------------
+            // 4. CAZADOR DE NOMBRES DE PRODUCTOS
+            // ---------------------------------------------------------
+            // Limpiamos el texto dejando letras, números (por si es "Serie QS10"), guiones y espacios
             string nombreFinal = System.Text.RegularExpressions.Regex.Replace(limpia, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
+        
+            // Contamos cuántas letras reales tiene. Un producto debería tener al menos 5 letras.
+            int cantidadLetras = nombreFinal.Count(char.IsLetter);
 
-            if (nombreFinal.Length > 4) 
+            if (cantidadLetras > 4)
             {
-                // ¿Tenemos números en la sala de espera? Sacamos el primero. Si no hay, ponemos 1.
+                // Filtramos las cabeceras comunes de los albaranes para que no las tome como productos
+                string minusculas = nombreFinal.ToLower();
+                if (minusculas.Contains("albara") || 
+                    minusculas.Contains("numero de") || 
+                    minusculas.Contains("nom i cognom") || 
+                    minusculas.Contains("direccio") || 
+                    minusculas.Contains("quantitat") || 
+                    minusculas.Contains("descripcio") ||
+                    minusculas.Contains("fecha"))
+                {
+                    continue; // Pasamos a la siguiente línea
+                }
+
+                // Si llegamos aquí, ES UN PRODUCTO. 
+                // Cogemos el primer número de la cola. Si la cola está vacía (error del OCR), ponemos 1 por defecto.
                 int cantidadAsignada = cantidadesPendientes.Count > 0 ? cantidadesPendientes.Dequeue() : 1;
 
                 productosDetectados.Add(new Producto {
@@ -182,7 +203,7 @@
                 });
             }
         }
-    } 
+    }
 
     private async Task ProcesarTodo()
     {
