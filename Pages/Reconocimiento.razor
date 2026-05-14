@@ -123,87 +123,96 @@
         var lineas = texto.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
         productosDetectados.Clear();
 
-        Queue<int> cantidadesPendientes = new Queue<int>();
+        // Guardaremos números y nombres por separado para unirlos al final
+        List<int> columnaCantidades = new List<int>();
+        List<string> columnaNombres = new List<string>();
+
+        bool dentroDeLaTabla = false;
 
         foreach (var linea in lineas)
         {
             string limpia = linea.Trim();
-
-            // ---------------------------------------------------------
-            // 1. FILTROS DE BASURA: Ignoramos lo que claramente no es un producto
-            // ---------------------------------------------------------
             if (string.IsNullOrWhiteSpace(limpia)) continue;
-            if (limpia.Contains("@") || limpia.Contains("www.")) continue;
-        
-            // Filtramos fechas (ej. 29/05/2026 o 29-05-2026)
-            if (System.Text.RegularExpressions.Regex.IsMatch(limpia, @"\d{2}[/-]\d{2}[/-]\d{2,4}")) continue;
+
+            // Normalizamos a minúsculas y quitamos tildes para que los filtros no fallen
+            string minusculas = limpia.ToLower().Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u");
 
             // ---------------------------------------------------------
-            // 2. CAZADOR DE CANTIDADES SUELTAS (El bloque numérico de la tabla)
+            // 1. PUERTAS DE ENTRADA Y SALIDA
             // ---------------------------------------------------------
-            // Intentamos ver si la línea es SOLO un número.
-            // Reemplazamos espacios por si lee "00 44 12" y lo junta
-            string posibleNumero = limpia.Replace(" ", ""); 
-        
-            if (int.TryParse(posibleNumero, out int numeroSuelto))
+            // Si detectamos la cabecera de la tabla, abrimos la puerta y pasamos a la siguiente línea
+            if (minusculas.Contains("quant") || minusculas.Contains("descripci"))
             {
-                // LÓGICA CLAVE: Un albarán no suele tener 1 millón de unidades.
-                // Si el número es mayor a 100,000, seguramente es un código de barras, 
-                // un número de serie o un Teléfono (como tu 666004412). ¡Lo ignoramos!
-                if (numeroSuelto > 0 && numeroSuelto < 100000)
-                {
-                    cantidadesPendientes.Enqueue(numeroSuelto);
-                }
-                continue; 
+                dentroDeLaTabla = true;
+                continue;
             }
 
+            // Si detectamos el pie de página, cerramos la puerta
+            if (minusculas.Contains("fecha") || minusculas.Contains("www") || limpia.Contains("@") || minusculas.Contains("carer") || minusculas.Contains("carrer") || minusculas.Contains("du"))
+            {
+                dentroDeLaTabla = false;
+                continue;
+            }
+
+            // Si la puerta está cerrada (estamos en la cabecera o pie de página), IGNORAMOS LA LÍNEA
+            if (!dentroDeLaTabla) continue;
+
             // ---------------------------------------------------------
-            // 3. CAZADOR DE LÍNEAS COMBINADAS (Número + Texto)
+            // 2. RECOPILACIÓN DE DATOS (Solo dentro de la tabla)
             // ---------------------------------------------------------
-            // Por si acaso el OCR lee la fila perfecta: "3 Purgadores de vapor"
+        
+            // A. ¿Es solo un número? (Columna Quantitat)
+            string posibleNumero = limpia.Replace(" ", "");
+            if (int.TryParse(posibleNumero, out int numeroSuelto))
+            {
+                // Limitamos a 10000 para evitar que cuele un código de barras como cantidad
+                if (numeroSuelto > 0 && numeroSuelto < 10000) 
+                {
+                    columnaCantidades.Add(numeroSuelto);
+                }
+                continue;
+            }
+
+            // B. ¿Es una línea combinada por suerte? (Ej: "3 Purgadores")
             var matchCombinado = System.Text.RegularExpressions.Regex.Match(limpia, @"^(\d+)\s+(.+)");
             if (matchCombinado.Success)
             {
-                cantidadesPendientes.Enqueue(int.Parse(matchCombinado.Groups[1].Value));
-                limpia = matchCombinado.Groups[2].Value; // Nos quedamos solo con el texto para procesarlo abajo
+                columnaCantidades.Add(int.Parse(matchCombinado.Groups[1].Value));
+                string nombreExtraido = matchCombinado.Groups[2].Value;
+                nombreExtraido = System.Text.RegularExpressions.Regex.Replace(nombreExtraido, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
+                if (nombreExtraido.Length > 4) columnaNombres.Add(nombreExtraido);
+                continue;
             }
 
-            // ---------------------------------------------------------
-            // 4. CAZADOR DE NOMBRES DE PRODUCTOS
-            // ---------------------------------------------------------
-            // Limpiamos el texto dejando letras, números (por si es "Serie QS10"), guiones y espacios
+            // C. Es solo texto (Columna Descripció)
             string nombreFinal = System.Text.RegularExpressions.Regex.Replace(limpia, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
-        
-            // Contamos cuántas letras reales tiene. Un producto debería tener al menos 5 letras.
-            int cantidadLetras = nombreFinal.Count(char.IsLetter);
-
-            if (cantidadLetras > 4)
+            if (nombreFinal.Length > 4)
             {
-                // Filtramos las cabeceras comunes de los albaranes para que no las tome como productos
-                string minusculas = nombreFinal.ToLower();
-                if (minusculas.Contains("albara") || 
-                    minusculas.Contains("numero de") || 
-                    minusculas.Contains("nom i cognom") || 
-                    minusculas.Contains("direccio") || 
-                    minusculas.Contains("quantitat") || 
-                    minusculas.Contains("descripcio") ||
-                    minusculas.Contains("fecha"))
-                {
-                    continue; // Pasamos a la siguiente línea
-                }
-
-                // Si llegamos aquí, ES UN PRODUCTO. 
-                // Cogemos el primer número de la cola. Si la cola está vacía (error del OCR), ponemos 1 por defecto.
-                int cantidadAsignada = cantidadesPendientes.Count > 0 ? cantidadesPendientes.Dequeue() : 1;
-
-                productosDetectados.Add(new Producto {
-                    Nombre = nombreFinal,
-                    Cantidad = cantidadAsignada,
-                    Codigo = "OCR-" + DateTime.Now.ToString("mmss")
-                });
+                 columnaNombres.Add(nombreFinal);
             }
         }
-    }
+
+        // ---------------------------------------------------------
+        // 3. EMPAREJAMIENTO FINAL (Zipping)
+        // ---------------------------------------------------------
+        // Ahora unimos la lista de nombres con la de cantidades ordenadamente
+        for (int i = 0; i < columnaNombres.Count; i++)
+        {
+            int cantidadAsignada = 1; // 1 por defecto por si el OCR se saltó algún número
+        
+            // Si hay una cantidad en esa misma posición, se la asignamos
+            if (i < columnaCantidades.Count)
+            {
+                cantidadAsignada = columnaCantidades[i];
+            }
+
+            productosDetectados.Add(new Producto {
+                Nombre = columnaNombres[i],
+                Cantidad = cantidadAsignada,
+                Codigo = "OCR-" + DateTime.Now.ToString("mmss")
+            });
+        }
+    }    
 
     private async Task ProcesarTodo()
     {
