@@ -123,10 +123,7 @@
         var lineas = texto.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
         productosDetectados.Clear();
 
-        // Guardaremos números y nombres por separado para unirlos al final
-        List<int> columnaCantidades = new List<int>();
-        List<string> columnaNombres = new List<string>();
-
+        int cantidadPendiente = 1; // 1 por defecto
         bool dentroDeLaTabla = false;
 
         foreach (var linea in lineas)
@@ -134,85 +131,79 @@
             string limpia = linea.Trim();
             if (string.IsNullOrWhiteSpace(limpia)) continue;
 
-            // Normalizamos a minúsculas y quitamos tildes para que los filtros no fallen
+            // Normalizamos para que las mayúsculas/tildes no nos rompan los filtros
             string minusculas = limpia.ToLower().Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u");
 
             // ---------------------------------------------------------
-            // 1. PUERTAS DE ENTRADA Y SALIDA
+            // 1. ABRIR Y CERRAR LA PUERTA (Filtro de cabeceras)
             // ---------------------------------------------------------
-            // Si detectamos la cabecera de la tabla, abrimos la puerta y pasamos a la siguiente línea
             if (minusculas.Contains("quant") || minusculas.Contains("descripci"))
             {
                 dentroDeLaTabla = true;
                 continue;
             }
 
-            // Si detectamos el pie de página, cerramos la puerta
             if (minusculas.Contains("fecha") || minusculas.Contains("www") || limpia.Contains("@") || minusculas.Contains("carer") || minusculas.Contains("carrer") || minusculas.Contains("du"))
             {
                 dentroDeLaTabla = false;
-                continue;
+                continue; // Cerramos el grifo, ya no hay más productos
             }
 
-            // Si la puerta está cerrada (estamos en la cabecera o pie de página), IGNORAMOS LA LÍNEA
             if (!dentroDeLaTabla) continue;
 
             // ---------------------------------------------------------
-            // 2. RECOPILACIÓN DE DATOS (Solo dentro de la tabla)
+            // 2. CASO A: EL OCR LEE UN NÚMERO SUELTO
             // ---------------------------------------------------------
-        
-            // A. ¿Es solo un número? (Columna Quantitat)
             string posibleNumero = limpia.Replace(" ", "");
             if (int.TryParse(posibleNumero, out int numeroSuelto))
             {
-                // Limitamos a 10000 para evitar que cuele un código de barras como cantidad
+                // Filtro de seguridad: no aceptamos códigos de barras o teléfonos
                 if (numeroSuelto > 0 && numeroSuelto < 10000) 
                 {
-                    columnaCantidades.Add(numeroSuelto);
+                    // ¡LA MAGIA! Si acabamos de añadir un producto (con cantidad 1) 
+                    // y justo en esta línea leemos su número real, volvemos atrás y se lo actualizamos.
+                    if (cantidadPendiente == 1 && productosDetectados.Count > 0 && productosDetectados.Last().Cantidad == 1)
+                    {
+                        productosDetectados.Last().Cantidad = numeroSuelto;
+                    }
+                    else
+                    {
+                        // Si el OCR leyó el número ANTES del texto, nos lo guardamos en el bolsillo
+                        cantidadPendiente = numeroSuelto;
+                    }
                 }
-                continue;
+                continue; // Pasamos a la siguiente línea
             }
 
-            // B. ¿Es una línea combinada por suerte? (Ej: "3 Purgadores")
+            // ---------------------------------------------------------
+            // 3. CASO B: LÍNEA COMBINADA DE CHIRIPA
+            // ---------------------------------------------------------
+            // Por si alguna vez lee "3 Purgadores" todo junto en la misma línea
             var matchCombinado = System.Text.RegularExpressions.Regex.Match(limpia, @"^(\d+)\s+(.+)");
             if (matchCombinado.Success)
             {
-                columnaCantidades.Add(int.Parse(matchCombinado.Groups[1].Value));
-                string nombreExtraido = matchCombinado.Groups[2].Value;
-                nombreExtraido = System.Text.RegularExpressions.Regex.Replace(nombreExtraido, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
-                if (nombreExtraido.Length > 4) columnaNombres.Add(nombreExtraido);
-                continue;
+                cantidadPendiente = int.Parse(matchCombinado.Groups[1].Value);
+                limpia = matchCombinado.Groups[2].Value; // Dejamos solo el texto
             }
 
-            // C. Es solo texto (Columna Descripció)
+            // ---------------------------------------------------------
+            // 4. CASO C: EL OCR LEE EL TEXTO DEL PRODUCTO
+            // ---------------------------------------------------------
             string nombreFinal = System.Text.RegularExpressions.Regex.Replace(limpia, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
-            if (nombreFinal.Length > 4)
-            {
-                 columnaNombres.Add(nombreFinal);
-            }
-        }
-
-        // ---------------------------------------------------------
-        // 3. EMPAREJAMIENTO FINAL (Zipping)
-        // ---------------------------------------------------------
-        // Ahora unimos la lista de nombres con la de cantidades ordenadamente
-        for (int i = 0; i < columnaNombres.Count; i++)
-        {
-            int cantidadAsignada = 1; // 1 por defecto por si el OCR se saltó algún número
         
-            // Si hay una cantidad en esa misma posición, se la asignamos
-            if (i < columnaCantidades.Count)
+            if (nombreFinal.Length > 4) // Un producto real tiene que tener al menos 5 letras
             {
-                cantidadAsignada = columnaCantidades[i];
-            }
+                productosDetectados.Add(new Producto {
+                    Nombre = nombreFinal,
+                    Cantidad = cantidadPendiente, // Si teníamos un número en el bolsillo, lo usa (si no, un 1)
+                    Codigo = "OCR-" + DateTime.Now.ToString("mmss")
+                });
 
-            productosDetectados.Add(new Producto {
-                Nombre = columnaNombres[i],
-                Cantidad = cantidadAsignada,
-                Codigo = "OCR-" + DateTime.Now.ToString("mmss")
-            });
+                // Reseteamos el bolsillo a 1 para el siguiente producto
+                cantidadPendiente = 1;
+            }
         }
-    }    
+    }   
 
     private async Task ProcesarTodo()
     {
