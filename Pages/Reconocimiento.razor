@@ -123,29 +123,105 @@
         var lineas = texto.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
         productosDetectados.Clear();
 
-        int cantidadPendiente = 1; // 1 por defecto
-        bool dentroDeLaTabla = false;
+        List<int> cantidades = new List<int>();
+        List<string> nombres = new List<string>();
+
+        // 1. EL ESCUDO: Lista negra de palabras que nunca queremos guardar
+        string[] palabrasProhibidas = { 
+            "albara", "albard", "sintse", "sintesis", "cognom", "telefon", "telfon", 
+            "direccio", "carrer", "carer", "fecha", "quantitat", "descripci", 
+            "comanda", "serie", "srie", "edit", "www", "nmero" 
+        };
 
         foreach (var linea in lineas)
         {
             string limpia = linea.Trim();
             if (string.IsNullOrWhiteSpace(limpia)) continue;
 
-            // Normalizamos para que las mayúsculas/tildes no nos rompan los filtros
+            // Normalizamos para comparar sin que las mayúsculas o tildes molesten
             string minusculas = limpia.ToLower().Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u");
 
-            // ---------------------------------------------------------
-            // 1. ABRIR Y CERRAR LA PUERTA (Filtro de cabeceras)
-            // ---------------------------------------------------------
-            if (minusculas.Contains("quant") || minusculas.Contains("descripci"))
+            // Comprobamos si la línea contiene basura de la lista negra
+            bool esBasura = false;
+            foreach (var prohibida in palabrasProhibidas)
             {
-                dentroDeLaTabla = true;
+                if (minusculas.Contains(prohibida))
+                {
+                    esBasura = true;
+                    break;
+                }
+            }
+            if (esBasura) continue; // Si es cabecera o pie, pasamos de línea inmediatamente
+
+            // ---------------------------------------------------------
+            // 2. ¿ES SOLO UN NÚMERO? (Columna de cantidades)
+            // ---------------------------------------------------------
+            string posibleNumero = limpia.Replace(" ", "");
+            if (int.TryParse(posibleNumero, out int numeroSuelto))
+            {
+                // Solo aceptamos cantidades lógicas (del 1 al 9999)
+                // Esto bloquea automáticamente códigos postales, el albarán 87530, etc.
+                if (numeroSuelto > 0 && numeroSuelto < 10000)
+                {
+                    cantidades.Add(numeroSuelto);
+                }
                 continue;
             }
 
-            if (minusculas.Contains("fecha") || minusculas.Contains("www") || limpia.Contains("@") || minusculas.Contains("carer") || minusculas.Contains("carrer") || minusculas.Contains("du"))
+            // ---------------------------------------------------------
+            // 3. ¿ES LÍNEA COMBINADA? (Ej: "3 Purgadores")
+            // ---------------------------------------------------------
+            var matchCombinado = System.Text.RegularExpressions.Regex.Match(limpia, @"^(\d+)\s+(.+)");
+            if (matchCombinado.Success)
             {
-                dentroDeLaTabla = false;
+                int cant = int.Parse(matchCombinado.Groups[1].Value);
+                if (cant > 0 && cant < 10000) cantidades.Add(cant);
+            
+                string nombreExtraido = matchCombinado.Groups[2].Value;
+                string nombreLimpio = System.Text.RegularExpressions.Regex.Replace(nombreExtraido, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
+                if (nombreLimpio.Length > 4) nombres.Add(nombreLimpio);
+            
+                continue;
+            }
+
+            // ---------------------------------------------------------
+            // 4. ¿ES SOLO TEXTO? (Columna de descripciones)
+            // ---------------------------------------------------------
+            string soloTexto = System.Text.RegularExpressions.Regex.Replace(limpia, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
+            if (soloTexto.Length > 4)
+            {
+                // Doble filtro para que no se cuele una fecha (ej: 29/05/2026) transformada en texto
+                if (!System.Text.RegularExpressions.Regex.IsMatch(limpia, @"\d{2}[/-]\d{2}[/-]\d{2,4}"))
+                {
+                    nombres.Add(soloTexto);
+                }
+            }
+        }
+
+        // ---------------------------------------------------------
+        // 5. EMPAREJAMIENTO FINAL (Zipping)
+        // ---------------------------------------------------------
+        // No importa si la IA leyó primero los números y luego los textos, 
+        // ahora están en listas separadas ordenadas de arriba a abajo.
+        for (int i = 0; i < nombres.Count; i++)
+        {
+            int cantAsignada = 1; // Por defecto 1 si faltó algún número por leerse
+        
+            // Emparejamos el Nombre nº1 con la Cantidad nº1, Nombre nº2 con Cantidad nº2...
+            if (i < cantidades.Count)
+            {
+                cantAsignada = cantidades[i];
+            }
+        
+            productosDetectados.Add(new Producto {
+                Nombre = nombres[i],
+                Cantidad = cantAsignada,
+                Codigo = "OCR-" + DateTime.Now.ToString("mmss")
+            });
+        }
+    }
+
+             dentroDeLaTabla = false;
                 continue; // Cerramos el grifo, ya no hay más productos
             }
 
