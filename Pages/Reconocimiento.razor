@@ -530,6 +530,7 @@
         public void OnSuccess(Java.Lang.Object result) => _tcs.SetResult(result);
     }
 
+
     public class OnFailureImplementation : Java.Lang.Object, Android.Gms.Tasks.IOnFailureListener
     {
         private readonly TaskCompletionSource<object> _tcs;
