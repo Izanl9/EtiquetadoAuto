@@ -40,7 +40,7 @@
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div class="text-start">
                                 <strong>@prod.Nombre</strong><br />
-                                <small class="text-muted">Código: @prod.Codigo</small>
+                                <small class="text-muted">Ref: @prod.Codigo</small>
                             </div>
                             <span class="badge bg-primary rounded-pill fs-6">x @prod.Cantidad</span>
                         </li>
@@ -52,7 +52,7 @@
                         <i class="oi oi-print"></i> IMPRIMIR Y GUARDAR
                     </button>
                     <button class="btn btn-outline-danger btn-sm" @onclick="LimpiarEscaneo">
-                        Cancelar
+                        Cancelar y Borrar
                     </button>
                 </div>
             }
@@ -63,7 +63,6 @@
 @code {
     private List<Producto> productosDetectados = new();
     private bool isProcessing = false;
-    private string textoDetectado = "";
     private string estadoMensaje = "Procesando...";
 
     private async Task CapturarAlbaran()
@@ -88,23 +87,27 @@
             var options = Xamarin.Google.MLKit.Vision.Text.Latin.TextRecognizerOptions.DefaultOptions;
             var recognizer = Xamarin.Google.MLKit.Vision.Text.TextRecognition.GetClient(options);
             
-            var tcs = new TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text>();
+            // Usamos object para que Razor no se confunda con los tags HTML
+            var tcs = new TaskCompletionSource<object>();
             
             recognizer.Process(image)
                 .AddOnSuccessListener(new OnSuccessImplementation(tcs))
                 .AddOnFailureListener(new OnFailureImplementation(tcs));
 
-            var result = await tcs.Task;
-            textoDetectado = result.GetText();
+            var resultObj = await tcs.Task;
+            var visionText = (Xamarin.Google.MLKit.Vision.Text.Text)resultObj;
+            string textoDetectado = visionText.GetText();
             
             if (string.IsNullOrWhiteSpace(textoDetectado))
             {
-                await JSRuntime.InvokeVoidAsync("alert", "No se detectó texto legible.");
+                await JSRuntime.InvokeVoidAsync("alert", "No se detectó texto.");
             }
             else
             {
                 ExtraerProductosDelTexto(textoDetectado);
             }
+            #else
+            await JSRuntime.InvokeVoidAsync("alert", "El OCR requiere un dispositivo Android.");
             #endif
         }
         catch (Exception ex)
@@ -126,7 +129,6 @@
         List<int> cantidades = new List<int>();
         List<string> nombres = new List<string>();
 
-        // 1. EL ESCUDO: Lista negra de palabras que nunca queremos guardar
         string[] palabrasProhibidas = { 
             "albara", "albard", "sintse", "sintesis", "cognom", "telefon", "telfon", 
             "direccio", "carrer", "carer", "fecha", "quantitat", "descripci", 
@@ -138,10 +140,8 @@
             string limpia = linea.Trim();
             if (string.IsNullOrWhiteSpace(limpia)) continue;
 
-            // Normalizamos para comparar sin que las mayúsculas o tildes molesten
             string minusculas = limpia.ToLower().Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u");
 
-            // Comprobamos si la línea contiene basura de la lista negra
             bool esBasura = false;
             foreach (var prohibida in palabrasProhibidas)
             {
@@ -151,16 +151,12 @@
                     break;
                 }
             }
-            if (esBasura) continue; // Si es cabecera o pie, pasamos de línea inmediatamente
+            if (esBasura) continue; 
 
-            // ---------------------------------------------------------
-            // 2. ¿ES SOLO UN NÚMERO? (Columna de cantidades)
-            // ---------------------------------------------------------
+            // Columna de cantidades
             string posibleNumero = limpia.Replace(" ", "");
             if (int.TryParse(posibleNumero, out int numeroSuelto))
             {
-                // Solo aceptamos cantidades lógicas (del 1 al 9999)
-                // Esto bloquea automáticamente códigos postales, el albarán 87530, etc.
                 if (numeroSuelto > 0 && numeroSuelto < 10000)
                 {
                     cantidades.Add(numeroSuelto);
@@ -168,51 +164,42 @@
                 continue;
             }
 
-            // ---------------------------------------------------------
-            // 3. ¿ES LÍNEA COMBINADA? (Ej: "3 Purgadores")
-            // ---------------------------------------------------------
-            var matchCombinado = System.Text.RegularExpressions.Regex.Match(limpia, @"^(\d+)\s+(.+)");
+            // Ojo: Sin la arroba en los strings de Regex
+            var matchCombinado = System.Text.RegularExpressions.Regex.Match(limpia, "^(\\d+)\\s+(.+)");
             if (matchCombinado.Success)
             {
                 int cant = int.Parse(matchCombinado.Groups[1].Value);
                 if (cant > 0 && cant < 10000) cantidades.Add(cant);
-            
+                
                 string nombreExtraido = matchCombinado.Groups[2].Value;
-                string nombreLimpio = System.Text.RegularExpressions.Regex.Replace(nombreExtraido, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
+                string nombreLimpio = System.Text.RegularExpressions.Regex.Replace(nombreExtraido, "[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\\s\\.\\-®]", "").Trim();
                 if (nombreLimpio.Length > 4) nombres.Add(nombreLimpio);
-            
+                
                 continue;
             }
 
-            // ---------------------------------------------------------
-            // 4. ¿ES SOLO TEXTO? (Columna de descripciones)
-            // ---------------------------------------------------------
-            string soloTexto = System.Text.RegularExpressions.Regex.Replace(limpia, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
+            // Columna de descripciones (Sin arroba, barras dobles)
+            string soloTexto = System.Text.RegularExpressions.Regex.Replace(limpia, "[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\\s\\.\\-®]", "").Trim();
             if (soloTexto.Length > 4)
             {
-                // Doble filtro para que no se cuele una fecha (ej: 29/05/2026) transformada en texto
-                if (!System.Text.RegularExpressions.Regex.IsMatch(limpia, @"\d{2}[/-]\d{2}[/-]\d{2,4}"))
+                // Filtro para ignorar fechas
+                if (!System.Text.RegularExpressions.Regex.IsMatch(limpia, "\\d{2}[/-]\\d{2}[/-]\\d{2,4}"))
                 {
                     nombres.Add(soloTexto);
                 }
             }
         }
 
-        // ---------------------------------------------------------
-        // 5. EMPAREJAMIENTO FINAL (Zipping)
-        // ---------------------------------------------------------
-        // No importa si la IA leyó primero los números y luego los textos, 
-        // ahora están en listas separadas ordenadas de arriba a abajo.
+        // Emparejamiento Final (Zipping)
         for (int i = 0; i < nombres.Count; i++)
         {
-            int cantAsignada = 1; // Por defecto 1 si faltó algún número por leerse
-        
-            // Emparejamos el Nombre nº1 con la Cantidad nº1, Nombre nº2 con Cantidad nº2...
+            int cantAsignada = 1; 
+            
             if (i < cantidades.Count)
             {
                 cantAsignada = cantidades[i];
             }
-        
+            
             productosDetectados.Add(new Producto {
                 Nombre = nombres[i],
                 Cantidad = cantAsignada,
@@ -220,66 +207,6 @@
             });
         }
     }
-
-             dentroDeLaTabla = false;
-                continue; // Cerramos el grifo, ya no hay más productos
-            }
-
-            if (!dentroDeLaTabla) continue;
-
-            // ---------------------------------------------------------
-            // 2. CASO A: EL OCR LEE UN NÚMERO SUELTO
-            // ---------------------------------------------------------
-            string posibleNumero = limpia.Replace(" ", "");
-            if (int.TryParse(posibleNumero, out int numeroSuelto))
-            {
-                // Filtro de seguridad: no aceptamos códigos de barras o teléfonos
-                if (numeroSuelto > 0 && numeroSuelto < 10000) 
-                {
-                    // ¡LA MAGIA! Si acabamos de añadir un producto (con cantidad 1) 
-                    // y justo en esta línea leemos su número real, volvemos atrás y se lo actualizamos.
-                    if (cantidadPendiente == 1 && productosDetectados.Count > 0 && productosDetectados.Last().Cantidad == 1)
-                    {
-                        productosDetectados.Last().Cantidad = numeroSuelto;
-                    }
-                    else
-                    {
-                        // Si el OCR leyó el número ANTES del texto, nos lo guardamos en el bolsillo
-                        cantidadPendiente = numeroSuelto;
-                    }
-                }
-                continue; // Pasamos a la siguiente línea
-            }
-
-            // ---------------------------------------------------------
-            // 3. CASO B: LÍNEA COMBINADA DE CHIRIPA
-            // ---------------------------------------------------------
-            // Por si alguna vez lee "3 Purgadores" todo junto en la misma línea
-            var matchCombinado = System.Text.RegularExpressions.Regex.Match(limpia, @"^(\d+)\s+(.+)");
-            if (matchCombinado.Success)
-            {
-                cantidadPendiente = int.Parse(matchCombinado.Groups[1].Value);
-                limpia = matchCombinado.Groups[2].Value; // Dejamos solo el texto
-            }
-
-            // ---------------------------------------------------------
-            // 4. CASO C: EL OCR LEE EL TEXTO DEL PRODUCTO
-            // ---------------------------------------------------------
-            string nombreFinal = System.Text.RegularExpressions.Regex.Replace(limpia, @"[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\.\-®]", "").Trim();
-        
-            if (nombreFinal.Length > 4) // Un producto real tiene que tener al menos 5 letras
-            {
-                productosDetectados.Add(new Producto {
-                    Nombre = nombreFinal,
-                    Cantidad = cantidadPendiente, // Si teníamos un número en el bolsillo, lo usa (si no, un 1)
-                    Codigo = "OCR-" + DateTime.Now.ToString("mmss")
-                });
-
-                // Reseteamos el bolsillo a 1 para el siguiente producto
-                cantidadPendiente = 1;
-            }
-        }
-    }   
 
     private async Task ProcesarTodo()
     {
@@ -303,11 +230,11 @@
             });
 
             LimpiarEscaneo();
-            await JSRuntime.InvokeVoidAsync("alert", "Proceso completado con éxito.");
+            await JSRuntime.InvokeVoidAsync("alert", "Inventario actualizado y etiquetas generadas.");
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al procesar: {ex.Message}");
         }
         finally
         {
@@ -319,19 +246,21 @@
     private void LimpiarEscaneo()
     {
         productosDetectados.Clear();
-        textoDetectado = "";
     }
+
+#if ANDROID
     public class OnSuccessImplementation : Java.Lang.Object, Android.Gms.Tasks.IOnSuccessListener
     {
-        private readonly TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text> _tcs;
-        public OnSuccessImplementation(TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text> tcs) => _tcs = tcs;
-        public void OnSuccess(Java.Lang.Object result) => _tcs.SetResult((Xamarin.Google.MLKit.Vision.Text.Text)result);
+        private readonly TaskCompletionSource<object> _tcs;
+        public OnSuccessImplementation(TaskCompletionSource<object> tcs) => _tcs = tcs;
+        public void OnSuccess(Java.Lang.Object result) => _tcs.SetResult(result);
     }
 
     public class OnFailureImplementation : Java.Lang.Object, Android.Gms.Tasks.IOnFailureListener
     {
-        private readonly TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text> _tcs;
-        public OnFailureImplementation(TaskCompletionSource<Xamarin.Google.MLKit.Vision.Text.Text> tcs) => _tcs = tcs;
+        private readonly TaskCompletionSource<object> _tcs;
+        public OnFailureImplementation(TaskCompletionSource<object> tcs) => _tcs = tcs;
         public void OnFailure(Java.Lang.Exception e) => _tcs.SetException(e);
-    }   
+    }
+#endif
 }
