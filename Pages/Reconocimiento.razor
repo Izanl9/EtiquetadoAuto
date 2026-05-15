@@ -14,7 +14,7 @@
             <h4 class="mb-0"><i class="oi oi-camera"></i> Reconocimiento de Albarán</h4>
         </div>
         <div class="card-body text-center">
-            <p class="text-muted">Captura una foto del albarán para detectar automáticamente los productos y cantidades.</p>
+            <p class="text-muted">Captura una foto del albarán para detectar productos automáticamente.</p>
             
             @if (isProcessing)
             {
@@ -61,7 +61,6 @@
 </div>
 
 @code {
-    // Clase auxiliar para agrupar texto por su posición en el papel
     public class InfoLinea 
     {
         public string Texto { get; set; } = "";
@@ -94,7 +93,6 @@
             var options = Xamarin.Google.MLKit.Vision.Text.Latin.TextRecognizerOptions.DefaultOptions;
             var recognizer = Xamarin.Google.MLKit.Vision.Text.TextRecognition.GetClient(options);
             
-            // Usamos TaskCompletionSource para esperar la respuesta de la API de Android
             var tcs = new TaskCompletionSource<object>();
             
             recognizer.Process(image)
@@ -106,7 +104,7 @@
             
             ProcesarTextoEspacial(visionText);
             #else
-            await JSRuntime.InvokeVoidAsync("alert", "El OCR requiere un dispositivo Android.");
+            await JSRuntime.InvokeVoidAsync("alert", "OCR solo disponible en Android.");
             #endif
         }
         catch (Exception ex)
@@ -126,7 +124,6 @@
         productosDetectados.Clear();
         var todasLasLineas = new List<InfoLinea>();
 
-        // 1. Extraemos todas las líneas con su coordenada Y (altura)
         foreach (var block in visionText.TextBlocks)
         {
             foreach (var line in block.Lines)
@@ -140,10 +137,7 @@
 
         if (!todasLasLineas.Any()) return;
 
-        // 2. Ordenamos por altura para procesar de arriba a abajo
         var lineasOrdenadas = todasLasLineas.OrderBy(l => l.Y).ToList();
-
-        // 3. Agrupamos en "filas" reales si la diferencia de altura es < 25 píxeles
         var filas = new List<List<InfoLinea>>();
         var filaActual = new List<InfoLinea> { lineasOrdenadas[0] };
 
@@ -155,49 +149,52 @@
             }
             else
             {
+                filas.Add(new List<List<InfoLinea>>(new[] { filaActual }).First());
                 filas.Add(new List<InfoLinea>(filaActual));
+                filas.RemoveAt(filas.Count - 2); // Limpieza de lógica de duplicados
                 filaActual = new List<InfoLinea> { lineasOrdenadas[i] };
             }
         }
         filas.Add(filaActual);
 
-        // 4. Analizamos cada fila detectada
         foreach (var fila in filas)
         {
             string textoFilaUnido = string.Join(" ", fila.Select(f => f.Texto));
-            string minus = textoFilaUnido.ToLower();
+            
+            // Normalizamos texto para filtros (sin acentos, minúsculas)
+            string minus = textoFilaUnido.ToLower()
+                .Replace("à", "a").Replace("è", "e").Replace("é", "e")
+                .Replace("í", "i").Replace("ò", "o").Replace("ó", "o").Replace("ú", "u");
 
-            // --- FILTRO DE BASURA AGRESIVO ---
-            if (minus.Contains("albara") || minus.Contains("serie") || minus.Contains("comanda") || 
-                minus.Contains("nom") || minus.Contains("telefon") || minus.Contains("telf") ||
-                minus.Contains("direccio") || minus.Contains("fecha") || minus.Contains("quantitat") ||
-                minus.Contains("descripci") || minus.Contains("www.") || minus.Contains("@") || 
-                minus.Contains("izan") || minus.Contains("lecina") || minus.Contains("carrer") ||
-                minus.Contains("nro") || minus.Contains("edit.org"))
+            // --- FILTRO DE CABECERAS Y DATOS DE EMPRESA ---
+            // IMPORTANTE: Hemos quitado "serie" para que detecte productos que contengan esa palabra
+            if (minus.Contains("albara") || minus.Contains("comanda") || 
+                minus.Contains("nom i cognom") || minus.Contains("telefon") || minus.Contains("telf") ||
+                minus.Contains("direccio") || minus.Contains("carrer") || minus.Contains("fecha") || 
+                minus.Contains("data") || minus.Contains("quantitat") || minus.Contains("descripci") || 
+                minus.Contains("www.") || minus.Contains("@") || minus.Contains("edit.org") ||
+                minus.Contains("sintesi") || minus.Contains("fictici"))
             {
                 continue;
             }
 
-            // Detectar números de teléfono o series (8+ dígitos ignorando espacios)
+            // Filtro para números largos (teléfonos o series de albarán)
             string sinEspacios = textoFilaUnido.Replace(" ", "");
             if (System.Text.RegularExpressions.Regex.IsMatch(sinEspacios, "\\d{8,}")) continue;
-
-            // Ignorar números sueltos grandes (como el número de albarán 87530)
-            if (System.Text.RegularExpressions.Regex.IsMatch(textoFilaUnido.Trim(), "^\\d{4,7}$")) continue;
 
             int cantidadEncontrada = 0;
             string nombreProducto = "";
 
             foreach (var item in fila)
             {
-                // ¿Es un número pequeño de 1 a 3 cifras? (Probablemente la cantidad)
+                // Detectar cantidad (1-3 dígitos)
                 if (System.Text.RegularExpressions.Regex.IsMatch(item.Texto.Trim(), "^\\d{1,3}$"))
                 {
                     cantidadEncontrada = int.Parse(item.Texto.Trim());
                 }
                 else if (item.Texto.Length > 3)
                 {
-                    // Limpiamos el texto pero mantenemos letras, números y símbolos de marca
+                    // Limpiar caracteres pero mantener nombres de producto complejos
                     string limpio = System.Text.RegularExpressions.Regex.Replace(item.Texto, "[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\\s\\.\\-®]", "").Trim();
                     if (!string.IsNullOrEmpty(limpio))
                     {
@@ -206,8 +203,8 @@
                 }
             }
 
-            // --- VALIDACIÓN FINAL DEL PRODUCTO ---
-            if (!string.IsNullOrWhiteSpace(nombreProducto) && nombreProducto.Length > 5)
+            // Validación: nombre con longitud mínima para ser considerado producto
+            if (!string.IsNullOrWhiteSpace(nombreProducto) && nombreProducto.Length > 6)
             {
                 productosDetectados.Add(new Producto {
                     Nombre = nombreProducto,
@@ -216,7 +213,6 @@
                 });
             }
         }
-        StateHasChanged();
     }
     #endif
 
@@ -225,7 +221,7 @@
         try
         {
             isProcessing = true;
-            estadoMensaje = "Guardando e imprimiendo...";
+            estadoMensaje = "Guardando...";
             StateHasChanged();
 
             foreach (var prod in productosDetectados)
@@ -233,20 +229,17 @@
                 await DB.GuardarProducto(prod);
             }
 
-            string rutaArchivo = GeneradorPdf.GenerarEtiquetas(productosDetectados);
-            
-            await Launcher.Default.OpenAsync(new OpenFileRequest
-            {
-                Title = "Etiquetas de Albarán",
-                File = new ReadOnlyFile(rutaArchivo)
+            string ruta = GeneradorPdf.GenerarEtiquetas(productosDetectados);
+            await Launcher.Default.OpenAsync(new OpenFileRequest {
+                Title = "Etiquetas",
+                File = new ReadOnlyFile(ruta)
             });
 
             LimpiarEscaneo();
-            await JSRuntime.InvokeVoidAsync("alert", "Proceso completado con éxito.");
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("alert", "Error al procesar: " + ex.Message);
+            await JSRuntime.InvokeVoidAsync("alert", "Error: " + ex.Message);
         }
         finally
         {
@@ -255,13 +248,9 @@
         }
     }
 
-    private void LimpiarEscaneo()
-    {
-        productosDetectados.Clear();
-    }
+    private void LimpiarEscaneo() => productosDetectados.Clear();
 
 #if ANDROID
-    // Implementaciones de los Listeners de Google ML Kit para Android
     public class OnSuccessImplementation : Java.Lang.Object, Android.Gms.Tasks.IOnSuccessListener
     {
         private readonly TaskCompletionSource<object> _tcs;
